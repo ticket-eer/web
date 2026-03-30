@@ -1,0 +1,1351 @@
+openapi: 3.0.3
+info:
+  title: Ticketeer API
+  version: 1.0.0
+  description: >
+    API REST de billetterie ferroviaire Ticketeer.
+    Gestion des utilisateurs, trajets, itinéraires, achats, transactions,
+    billets numériques avec QR code, contrôle et administration.
+
+servers:
+  - url: http://localhost:8080/api
+    description: Local
+  - url: https://api.ticketeer.com/api
+    description: Production
+
+tags:
+  - name: Auth
+  - name: Users
+  - name: Trajets
+  - name: Itineraires
+  - name: Transactions
+  - name: Billets
+  - name: Controles
+  - name: UnitesControle
+  - name: ServicesTransport
+  - name: Admin
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Inscription d'un utilisateur
+      description: Création d'un compte client par défaut.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Utilisateur créé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Connexion utilisateur
+      description: Authentifie un utilisateur et retourne un JWT.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Connexion réussie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Profil courant
+      responses:
+        '200':
+          description: Profil utilisateur connecté
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users:
+    get:
+      tags: [Users]
+      summary: Lister les utilisateurs
+      description: Réservé aux administrateurs.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: role
+          schema:
+            $ref: '#/components/schemas/Role'
+      responses:
+        '200':
+          description: Liste des utilisateurs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserListResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /users/{userId}:
+    get:
+      tags: [Users]
+      summary: Détail d'un utilisateur
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Utilisateur trouvé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Users]
+      summary: Modifier un utilisateur
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+      responses:
+        '200':
+          description: Utilisateur modifié
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Users]
+      summary: Supprimer un utilisateur
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '204':
+          description: Utilisateur supprimé
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /trajets:
+    get:
+      tags: [Trajets]
+      summary: Rechercher les trajets disponibles
+      description: Consultation des trajets disponibles avec filtres. :contentReference[oaicite:5]{index=5}
+      parameters:
+        - in: query
+          name: villeDepart
+          schema:
+            type: string
+        - in: query
+          name: villeArrivee
+          schema:
+            type: string
+        - in: query
+          name: dateVoyage
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+            default: 20
+      responses:
+        '200':
+          description: Liste des trajets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrajetListResponse'
+
+    post:
+      tags: [Trajets]
+      summary: Créer un trajet
+      description: Réservé à l'administration.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrajetCreateRequest'
+      responses:
+        '201':
+          description: Trajet créé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trajet'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /trajets/{trajetId}:
+    get:
+      tags: [Trajets]
+      summary: Détail d'un trajet
+      parameters:
+        - $ref: '#/components/parameters/TrajetId'
+      responses:
+        '200':
+          description: Trajet trouvé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trajet'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Trajets]
+      summary: Modifier un trajet
+      parameters:
+        - $ref: '#/components/parameters/TrajetId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrajetUpdateRequest'
+      responses:
+        '200':
+          description: Trajet modifié
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trajet'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Trajets]
+      summary: Supprimer un trajet
+      parameters:
+        - $ref: '#/components/parameters/TrajetId'
+      responses:
+        '204':
+          description: Trajet supprimé
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /itineraires:
+    get:
+      tags: [Itineraires]
+      summary: Rechercher des itinéraires
+      parameters:
+        - in: query
+          name: villeDepart
+          schema:
+            type: string
+        - in: query
+          name: villeArrivee
+          schema:
+            type: string
+        - in: query
+          name: dateVoyage
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Liste des itinéraires
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItineraireListResponse'
+
+    post:
+      tags: [Itineraires]
+      summary: Créer un itinéraire
+      description: Réservé à l'administration.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItineraireCreateRequest'
+      responses:
+        '201':
+          description: Itinéraire créé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Itineraire'
+
+  /itineraires/{itineraireId}:
+    get:
+      tags: [Itineraires]
+      summary: Détail d'un itinéraire
+      parameters:
+        - $ref: '#/components/parameters/ItineraireId'
+      responses:
+        '200':
+          description: Itinéraire trouvé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Itineraire'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Itineraires]
+      summary: Modifier un itinéraire
+      parameters:
+        - $ref: '#/components/parameters/ItineraireId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItineraireUpdateRequest'
+      responses:
+        '200':
+          description: Itinéraire modifié
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Itineraire'
+
+    delete:
+      tags: [Itineraires]
+      summary: Supprimer un itinéraire
+      parameters:
+        - $ref: '#/components/parameters/ItineraireId'
+      responses:
+        '204':
+          description: Itinéraire supprimé
+
+  /transactions:
+    get:
+      tags: [Transactions]
+      summary: Lister les transactions
+      description: >
+        Un client voit ses transactions. Un admin peut voir toutes les transactions.
+      parameters:
+        - in: query
+          name: statut
+          schema:
+            $ref: '#/components/schemas/StatutTransaction'
+      responses:
+        '200':
+          description: Liste des transactions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionListResponse'
+
+    post:
+      tags: [Transactions]
+      summary: Créer une transaction / initier un paiement
+      description: >
+        Enregistre une tentative de paiement pour un trajet ou un itinéraire. Si acceptée,
+        un billet est généré. Conforme aux scénarios d'achat accepté / refusé. :contentReference[oaicite:6]{index=6} :contentReference[oaicite:7]{index=7}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionCreateRequest'
+      responses:
+        '201':
+          description: Transaction créée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionWithBilletResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /transactions/{transactionId}:
+    get:
+      tags: [Transactions]
+      summary: Détail d'une transaction
+      parameters:
+        - $ref: '#/components/parameters/TransactionId'
+      responses:
+        '200':
+          description: Transaction trouvée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /transactions/{transactionId}/confirm:
+    post:
+      tags: [Transactions]
+      summary: Confirmer une transaction
+      description: Simule le retour d'un prestataire de paiement.
+      parameters:
+        - $ref: '#/components/parameters/TransactionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionConfirmRequest'
+      responses:
+        '200':
+          description: Transaction mise à jour
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionWithBilletResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /billets:
+    get:
+      tags: [Billets]
+      summary: Lister les billets
+      description: >
+        Pour un client, renvoie "Mes billets". Pour un admin, peut renvoyer tous les billets. :contentReference[oaicite:8]{index=8}
+      parameters:
+        - in: query
+          name: etat
+          schema:
+            $ref: '#/components/schemas/EtatBillet'
+      responses:
+        '200':
+          description: Liste des billets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BilletListResponse'
+
+  /billets/{billetId}:
+    get:
+      tags: [Billets]
+      summary: Détail d'un billet
+      parameters:
+        - $ref: '#/components/parameters/BilletId'
+      responses:
+        '200':
+          description: Billet trouvé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Billet'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /billets/{billetId}/download:
+    get:
+      tags: [Billets]
+      summary: Télécharger le billet
+      description: Retourne le billet PDF ou image.
+      parameters:
+        - $ref: '#/components/parameters/BilletId'
+      responses:
+        '200':
+          description: Fichier du billet
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /billets/{billetId}/qrcode:
+    get:
+      tags: [Billets]
+      summary: Obtenir le QR code du billet
+      parameters:
+        - $ref: '#/components/parameters/BilletId'
+      responses:
+        '200':
+          description: QR code
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+
+  /billets/code/{codeOptique}:
+    get:
+      tags: [Billets]
+      summary: Rechercher un billet par code optique
+      description: Utilisé par l'application de contrôle.
+      parameters:
+        - in: path
+          name: codeOptique
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Billet trouvé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Billet'
+        '404':
+          description: Code optique inconnu
+
+  /controles:
+    get:
+      tags: [Controles]
+      summary: Lister les contrôles
+      description: Historique des validations pour contrôleurs et admins. :contentReference[oaicite:9]{index=9}
+      parameters:
+        - in: query
+          name: resultat
+          schema:
+            $ref: '#/components/schemas/EtatBillet'
+        - in: query
+          name: billetId
+          schema:
+            type: string
+        - in: query
+          name: agentId
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Liste des contrôles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControleListResponse'
+
+    post:
+      tags: [Controles]
+      summary: Enregistrer un contrôle manuel
+      description: Contrôle saisi manuellement par un contrôleur.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ControleCreateRequest'
+      responses:
+        '201':
+          description: Contrôle enregistré
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControleWithBilletResponse'
+
+  /controles/scan:
+    post:
+      tags: [Controles]
+      summary: Scanner / valider un QR code
+      description: >
+        Recherche un billet par code optique, vérifie son état et enregistre l'opération
+        de contrôle : valide, déjà utilisé, expiré ou invalide. :contentReference[oaicite:10]{index=10} :contentReference[oaicite:11]{index=11}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ControleScanRequest'
+      responses:
+        '200':
+          description: Résultat du contrôle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControleScanResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /controles/{controleId}:
+    get:
+      tags: [Controles]
+      summary: Détail d'un contrôle
+      parameters:
+        - $ref: '#/components/parameters/ControleId'
+      responses:
+        '200':
+          description: Contrôle trouvé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Controle'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /unites-controle:
+    get:
+      tags: [UnitesControle]
+      summary: Lister les unités de contrôle
+      responses:
+        '200':
+          description: Liste des unités
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UniteControleListResponse'
+
+    post:
+      tags: [UnitesControle]
+      summary: Créer une unité de contrôle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UniteControleCreateRequest'
+      responses:
+        '201':
+          description: Unité créée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UniteControle'
+
+  /unites-controle/{uniteId}:
+    get:
+      tags: [UnitesControle]
+      summary: Détail d'une unité de contrôle
+      parameters:
+        - $ref: '#/components/parameters/UniteId'
+      responses:
+        '200':
+          description: Unité trouvée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UniteControle'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [UnitesControle]
+      summary: Modifier une unité de contrôle
+      parameters:
+        - $ref: '#/components/parameters/UniteId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UniteControleUpdateRequest'
+      responses:
+        '200':
+          description: Unité modifiée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UniteControle'
+
+    delete:
+      tags: [UnitesControle]
+      summary: Supprimer une unité de contrôle
+      parameters:
+        - $ref: '#/components/parameters/UniteId'
+      responses:
+        '204':
+          description: Unité supprimée
+
+  /services-transport:
+    get:
+      tags: [ServicesTransport]
+      summary: Lister les services de transport
+      responses:
+        '200':
+          description: Liste des services
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceTransportListResponse'
+
+    post:
+      tags: [ServicesTransport]
+      summary: Créer un service de transport
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceTransportCreateRequest'
+      responses:
+        '201':
+          description: Service créé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceTransport'
+
+  /services-transport/{serviceId}:
+    get:
+      tags: [ServicesTransport]
+      summary: Détail d'un service de transport
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+      responses:
+        '200':
+          description: Service trouvé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceTransport'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [ServicesTransport]
+      summary: Modifier un service de transport
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceTransportUpdateRequest'
+      responses:
+        '200':
+          description: Service modifié
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceTransport'
+
+    delete:
+      tags: [ServicesTransport]
+      summary: Supprimer un service de transport
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+      responses:
+        '204':
+          description: Service supprimé
+
+  /admin/dashboard:
+    get:
+      tags: [Admin]
+      summary: Tableau de bord administrateur
+      description: Données agrégées pour l'administration.
+      responses:
+        '200':
+          description: Indicateurs admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDashboardResponse'
+
+  /admin/billets:
+    get:
+      tags: [Admin]
+      summary: Lister tous les billets
+      responses:
+        '200':
+          description: Tous les billets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BilletListResponse'
+
+  /admin/controles:
+    get:
+      tags: [Admin]
+      summary: Historique complet des contrôles
+      responses:
+        '200':
+          description: Tous les contrôles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControleListResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    UserId:
+      in: path
+      name: userId
+      required: true
+      schema:
+        type: string
+    BilletId:
+      in: path
+      name: billetId
+      required: true
+      schema:
+        type: string
+    TransactionId:
+      in: path
+      name: transactionId
+      required: true
+      schema:
+        type: string
+    TrajetId:
+      in: path
+      name: trajetId
+      required: true
+      schema:
+        type: string
+    ItineraireId:
+      in: path
+      name: itineraireId
+      required: true
+      schema:
+        type: string
+    ControleId:
+      in: path
+      name: controleId
+      required: true
+      schema:
+        type: string
+    UniteId:
+      in: path
+      name: uniteId
+      required: true
+      schema:
+        type: string
+    ServiceId:
+      in: path
+      name: serviceId
+      required: true
+      schema:
+        type: string
+
+  responses:
+    BadRequest:
+      description: Requête invalide
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Non authentifié
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Accès interdit
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Ressource introuvable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    Role:
+      type: string
+      enum: [CLIENT, CONTROLEUR, ADMIN]
+
+    EtatBillet:
+      type: string
+      enum: [NON_UTILISE, UTILISE, EXPIRE, INVALIDE]
+
+    StatutTransaction:
+      type: string
+      enum: [ACCEPTEE, REFUSEE]
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        nom:
+          type: string
+        email:
+          type: string
+          format: email
+        matricule:
+          type: string
+          nullable: true
+        role:
+          $ref: '#/components/schemas/Role'
+        uniteControleId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    RegisterRequest:
+      type: object
+      required: [nom, email, motDePasse]
+      properties:
+        nom:
+          type: string
+        email:
+          type: string
+          format: email
+        motDePasse:
+          type: string
+          format: password
+
+    LoginRequest:
+      type: object
+      required: [email, motDePasse]
+      properties:
+        email:
+          type: string
+          format: email
+        motDePasse:
+          type: string
+          format: password
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        type:
+          type: string
+          example: Bearer
+        user:
+          $ref: '#/components/schemas/User'
+
+    UserUpdateRequest:
+      type: object
+      properties:
+        nom:
+          type: string
+        email:
+          type: string
+          format: email
+        motDePasse:
+          type: string
+        matricule:
+          type: string
+          nullable: true
+        role:
+          $ref: '#/components/schemas/Role'
+        uniteControleId:
+          type: string
+          nullable: true
+
+    Trajet:
+      type: object
+      properties:
+        id:
+          type: string
+        villeDepart:
+          type: string
+        villeArrivee:
+          type: string
+        dateVoyage:
+          type: string
+          format: date
+        train:
+          type: string
+        heureDepart:
+          type: string
+          format: time
+        heureArrivee:
+          type: string
+          format: time
+        itineraireId:
+          type: string
+          nullable: true
+
+    TrajetCreateRequest:
+      type: object
+      required:
+        [villeDepart, villeArrivee, dateVoyage, train, heureDepart, heureArrivee]
+      properties:
+        villeDepart:
+          type: string
+        villeArrivee:
+          type: string
+        dateVoyage:
+          type: string
+          format: date
+        train:
+          type: string
+        heureDepart:
+          type: string
+          format: time
+        heureArrivee:
+          type: string
+          format: time
+        itineraireId:
+          type: string
+          nullable: true
+
+    TrajetUpdateRequest:
+      allOf:
+        - $ref: '#/components/schemas/TrajetCreateRequest'
+
+    Itineraire:
+      type: object
+      properties:
+        id:
+          type: string
+        dateCreation:
+          type: string
+          format: date
+        trajets:
+          type: array
+          items:
+            $ref: '#/components/schemas/Trajet'
+
+    ItineraireCreateRequest:
+      type: object
+      properties:
+        trajetIds:
+          type: array
+          items:
+            type: string
+
+    ItineraireUpdateRequest:
+      type: object
+      properties:
+        trajetIds:
+          type: array
+          items:
+            type: string
+
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: string
+        montant:
+          type: number
+          format: double
+        dateHeure:
+          type: string
+          format: date-time
+        statut:
+          $ref: '#/components/schemas/StatutTransaction'
+        moyenPaiement:
+          type: string
+        userId:
+          type: string
+        billetId:
+          type: string
+          nullable: true
+
+    TransactionCreateRequest:
+      type: object
+      required: [moyenPaiement, montant]
+      properties:
+        montant:
+          type: number
+          format: double
+        moyenPaiement:
+          type: string
+          example: CARTE
+        trajetId:
+          type: string
+          nullable: true
+        itineraireId:
+          type: string
+          nullable: true
+      description: >
+        Fournir soit trajetId, soit itineraireId.
+
+    TransactionConfirmRequest:
+      type: object
+      required: [statut]
+      properties:
+        statut:
+          $ref: '#/components/schemas/StatutTransaction'
+
+    Billet:
+      type: object
+      properties:
+        id:
+          type: string
+        codeOptique:
+          type: string
+        dateValidite:
+          type: string
+          format: date
+        dateAchat:
+          type: string
+          format: date
+        etatBillet:
+          $ref: '#/components/schemas/EtatBillet'
+        userId:
+          type: string
+        transactionId:
+          type: string
+        trajetId:
+          type: string
+          nullable: true
+        itineraireId:
+          type: string
+          nullable: true
+        qrCodeUrl:
+          type: string
+          nullable: true
+
+    Controle:
+      type: object
+      properties:
+        id:
+          type: string
+        dateHeure:
+          type: string
+          format: date-time
+        resultat:
+          $ref: '#/components/schemas/EtatBillet'
+        agentId:
+          type: string
+        billetId:
+          type: string
+
+    ControleCreateRequest:
+      type: object
+      required: [billetId, resultat]
+      properties:
+        billetId:
+          type: string
+        resultat:
+          $ref: '#/components/schemas/EtatBillet'
+
+    ControleScanRequest:
+      type: object
+      required: [codeOptique]
+      properties:
+        codeOptique:
+          type: string
+        uniteControleId:
+          type: string
+          nullable: true
+
+    ControleScanResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Billet accepté
+        resultat:
+          $ref: '#/components/schemas/EtatBillet'
+        billet:
+          $ref: '#/components/schemas/Billet'
+          nullable: true
+        controle:
+          $ref: '#/components/schemas/Controle'
+          nullable: true
+
+    ControleWithBilletResponse:
+      type: object
+      properties:
+        controle:
+          $ref: '#/components/schemas/Controle'
+        billet:
+          $ref: '#/components/schemas/Billet'
+
+    UniteControle:
+      type: object
+      properties:
+        id:
+          type: string
+        modele:
+          type: string
+        dateAcquisition:
+          type: string
+          format: date
+
+    UniteControleCreateRequest:
+      type: object
+      required: [modele, dateAcquisition]
+      properties:
+        modele:
+          type: string
+        dateAcquisition:
+          type: string
+          format: date
+
+    UniteControleUpdateRequest:
+      type: object
+      properties:
+        modele:
+          type: string
+        dateAcquisition:
+          type: string
+          format: date
+
+    ServiceTransport:
+      type: object
+      properties:
+        id:
+          type: string
+        villeDepart:
+          type: string
+        villeArrivee:
+          type: string
+        train:
+          type: string
+        frequence:
+          type: string
+
+    ServiceTransportCreateRequest:
+      type: object
+      required: [villeDepart, villeArrivee, train, frequence]
+      properties:
+        villeDepart:
+          type: string
+        villeArrivee:
+          type: string
+        train:
+          type: string
+        frequence:
+          type: string
+
+    ServiceTransportUpdateRequest:
+      type: object
+      properties:
+        villeDepart:
+          type: string
+        villeArrivee:
+          type: string
+        train:
+          type: string
+        frequence:
+          type: string
+
+    AdminDashboardResponse:
+      type: object
+      properties:
+        totalUsers:
+          type: integer
+        totalBillets:
+          type: integer
+        totalTransactions:
+          type: integer
+        totalControles:
+          type: integer
+        billetsParEtat:
+          type: object
+          additionalProperties:
+            type: integer
+
+    TransactionWithBilletResponse:
+      type: object
+      properties:
+        transaction:
+          $ref: '#/components/schemas/Transaction'
+        billet:
+          $ref: '#/components/schemas/Billet'
+          nullable: true
+
+    UserListResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+
+    TrajetListResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Trajet'
+
+    ItineraireListResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Itineraire'
+
+    TransactionListResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transaction'
+
+    BilletListResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Billet'
+
+    ControleListResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Controle'
+
+    UniteControleListResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/UniteControle'
+
+    ServiceTransportListResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceTransport'
+
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
+        path:
+          type: string
