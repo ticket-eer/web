@@ -1,176 +1,279 @@
-import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CreditCard, ArrowRight } from 'lucide-react';
-import { Train } from '../data/mockData';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { createTransaction, getStoredUser } from '../services/api';
+import { TopNav } from './TopNav';
+import { SubNav } from './SubNav';
 
-export function TicketPurchasePage() {
+function TicketPurchasePage() {
   const navigate = useNavigate();
-  const [train, setTrain] = useState<Train | null>(null);
-  const [passengerName, setPassengerName] = useState('');
-  const [email, setEmail] = useState('');
-  const [cardNumber, setCardNumber] = useState('');
-  const [processing, setProcessing] = useState(false);
+
+  const [trip, setTrip] = useState<any>(null);
+  const [step, setStep] = useState(1);
+  const [generatedTicket, setGeneratedTicket] = useState<any>(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const user = getStoredUser();
 
   useEffect(() => {
-    // Check if user is authenticated
-    const auth = sessionStorage.getItem('clientAuth');
-    if (!auth) {
-      sessionStorage.setItem('redirectAfterLogin', '/purchase');
-      navigate('/client/login');
-      return;
-    }
-    
-    const storedTrain = sessionStorage.getItem('selectedTrain');
-    if (storedTrain) {
-      setTrain(JSON.parse(storedTrain));
-      
-      // Pre-fill user data from auth
-      const userData = JSON.parse(auth);
-      setPassengerName(userData.name || '');
-      setEmail(userData.email || '');
-    } else {
+    try {
+      const stored = JSON.parse(sessionStorage.getItem('selectedTrip') || 'null');
+
+      if (!stored) {
+        navigate('/search');
+        return;
+      }
+
+      setTrip(stored);
+    } catch {
       navigate('/search');
     }
   }, [navigate]);
 
-  const handlePurchase = () => {
-    setProcessing(true);
-    
-    // Simulate payment processing
-    setTimeout(() => {
-      // Generate ticket ID
-      const ticketId = `TKT-2026-${String(Math.floor(Math.random() * 900000) + 100000)}`;
-      
-      // Store ticket data
-      const ticketData = {
-        id: ticketId,
-        passengerName,
-        email,
-        train,
-        status: 'valid',
-        purchaseDate: new Date().toISOString().split('T')[0],
-      };
-      
-      sessionStorage.setItem('currentTicket', JSON.stringify(ticketData));
-      navigate(`/ticket/${ticketId}`);
-    }, 1500);
-  };
+  async function pay() {
+    setError('');
+    setLoading(true);
 
-  if (!train) {
-    return null;
+    try {
+      const montant = trip?.prix || 45;
+      const trajetId = trip?.isConnection ? null : trip?.trajetId;
+      const itineraireId = trip?.isConnection ? trip?.itineraireId : null;
+
+      const data = await createTransaction(montant, 'CARTE', trajetId, itineraireId);
+
+      const billet =
+          data.billet ||
+          data.ticket ||
+          data.billetDto ||
+          data.transaction?.billet ||
+          {
+            id: data.transaction?.billetId || `TKT-${Date.now()}`,
+            codeOptique: null,
+          };
+
+      setGeneratedTicket(billet);
+      sessionStorage.setItem('generatedTicket', JSON.stringify(billet));
+      setStep(3);
+    } catch (err: any) {
+      setError(err.message || 'Erreur paiement');
+    } finally {
+      setLoading(false);
+    }
   }
 
+  if (!trip) return null;
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 py-4">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-4">
-            <Link to="/search" className="text-gray-600 hover:text-gray-900">
-              <ArrowLeft className="w-6 h-6" />
-            </Link>
-            <h1 className="text-2xl text-blue-600">Ticketeer</h1>
+      <>
+        <TopNav />
+        <SubNav to="/search" />
+
+        <div className="pwrap" style={{ maxWidth: 700 }}>
+          <div className="steps">
+            {[
+              ['Résumé', 1],
+              ['Paiement', 2],
+              ['Confirmation', 3],
+            ].map(([label, number], index) => {
+              const n = number as number;
+              const c = n < step ? 'done' : n === step ? 'active' : 'pending';
+
+              return (
+                  <React.Fragment key={label}>
+                    {index > 0 && <div className="sline" />}
+                    <div className="step">
+                      <div className={`snum ${c}`}>{n < step ? '✓' : n}</div>
+                      <span className={`slbl ${n <= step ? 'active' : 'pending'}`}>{label}</span>
+                    </div>
+                  </React.Fragment>
+              );
+            })}
           </div>
+
+          {error && <div className="err" style={{ display: 'block' }}>{error}</div>}
+
+          {step === 1 && (
+              <div className="pcard">
+                <div className="pcard-head">
+                  <h2>Résumé du voyage</h2>
+                </div>
+
+                <div className="pcard-body">
+                  <div className="trip-summary">
+                    <div className="ts-side">
+                      <div className="ts-time">{trip.heureDepart || '--'}</div>
+                      <div className="ts-city">{trip.villeDepart || '—'}</div>
+                    </div>
+
+                    <span className="ts-arrow">→</span>
+
+                    <div className="ts-side">
+                      <div className="ts-time">{trip.heureArrivee || '--'}</div>
+                      <div className="ts-city">{trip.villeArrivee || '—'}</div>
+                    </div>
+                  </div>
+
+                  <div className="info-grid">
+                    <div className="ic">
+                      <div className="il">Date de voyage</div>
+                      <div className="iv">{trip.dateVoyage || '—'}</div>
+                    </div>
+
+                    <div className="ic">
+                      <div className="il">Type</div>
+                      <div className="iv">{trip.isConnection ? 'Correspondance' : 'Trajet direct'}</div>
+                    </div>
+
+                    <div className="ic">
+                      <div className="il">Train</div>
+                      <div className="iv">{trip.train || '—'}</div>
+                    </div>
+
+                    <div className="ic">
+                      <div className="il">Passager</div>
+                      <div className="iv">{user?.nom || user?.email || '—'}</div>
+                    </div>
+                  </div>
+
+                  <div className="price-row">
+                    <span className="price-lbl">Total à payer</span>
+                    <span className="price-val">€{trip.prix ?? '45.00'}</span>
+                  </div>
+                </div>
+
+                <div className="pcard-foot">
+                  <button className="btn-sec" onClick={() => navigate('/search')}>
+                    ← Retour
+                  </button>
+
+                  <button className="btn-prim" onClick={() => setStep(2)}>
+                    Procéder au paiement →
+                  </button>
+                </div>
+              </div>
+          )}
+
+          {step === 2 && (
+              <div className="pcard">
+                <div className="pcard-head">
+                  <h2>Paiement</h2>
+                </div>
+
+                <div className="pcard-body">
+                  <div className="fld">
+                    <label>Moyen de paiement</label>
+                    <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          padding: '11px 16px',
+                          border: '1px solid #2563eb',
+                          borderRadius: 8,
+                          background: '#eff6ff',
+                        }}
+                    >
+                  <span style={{ fontSize: 14, fontWeight: 600, color: '#1d4ed8' }}>
+                    Credit / Debit Card
+                  </span>
+                    </div>
+                  </div>
+
+                  <div className="fld">
+                    <label>Card number mock</label>
+                    <input className="ro-inp" value="1234 5678 9012 3456" readOnly />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    <div className="fld">
+                      <label>Expiry</label>
+                      <input className="ro-inp" value="12/27" readOnly />
+                    </div>
+
+                    <div className="fld">
+                      <label>CVV</label>
+                      <input className="ro-inp" value="•••" readOnly />
+                    </div>
+                  </div>
+
+                  <div className="warn-note">
+                    ⚠️ Note: This is a mock payment interface for demonstration purposes.
+                  </div>
+
+                  <div className="price-row">
+                    <span className="price-lbl">Total</span>
+                    <span className="price-val">€{trip.prix ?? '45.00'}</span>
+                  </div>
+                </div>
+
+                <div className="pcard-foot">
+                  <button className="btn-sec" onClick={() => setStep(1)}>
+                    ← Retour
+                  </button>
+
+                  <button className="btn-prim" onClick={pay} disabled={loading}>
+                    {loading ? 'Processing...' : 'Pay and generate ticket'}
+                  </button>
+                </div>
+              </div>
+          )}
+
+          {step === 3 && generatedTicket && (
+              <div className="pcard">
+                <div className="success-top">
+                  <div className="suc-icon">✓</div>
+                  <div className="suc-title">Ticket generated successfully</div>
+                  <div className="suc-sub">Your ticket has been sent to {user?.email || ''}</div>
+                </div>
+
+                <div className="pcard-body">
+                  <div className="info-grid">
+                    <div className="ic">
+                      <div className="il">Ticket ID</div>
+                      <div className="iv" style={{ fontSize: 12, fontFamily: 'monospace' }}>
+                        {generatedTicket.id || 'N/A'}
+                      </div>
+                    </div>
+
+                    <div className="ic">
+                      <div className="il">Status</div>
+                      <div className="iv">
+                        <span className="badge bv">Valid / Not yet used</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="qr-box">
+                    <div className="qr-lbl">Validation QR Code</div>
+                    <div className="qr-fake">
+                      {Array.from({ length: 81 }).map((_, i) => (
+                          <span key={i} />
+                      ))}
+                    </div>
+                    <div className="qr-code">
+                      {generatedTicket.codeOptique || generatedTicket.code_optique || 'TKT-CODE'}
+                    </div>
+                  </div>
+
+                  <div className="imp-note">
+                    <strong>Important:</strong> This ticket is personal and must be presented during
+                    control.
+                  </div>
+                </div>
+
+                <div className="pcard-foot">
+                  <button className="btn-sec" onClick={() => navigate('/my-tickets')}>
+                    View all tickets
+                  </button>
+
+                  <button className="btn-prim" onClick={() => navigate('/search')}>
+                    Book another trip
+                  </button>
+                </div>
+              </div>
+          )}
         </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-3xl mx-auto px-4 py-8">
-        <h2 className="text-2xl mb-6">Purchase ticket</h2>
-
-        <div className="space-y-6">
-          {/* Trip Summary */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-lg mb-4">Trip summary</h3>
-            <div className="space-y-3">
-              <div className="flex items-center gap-4">
-                <div className="flex-1">
-                  <div className="text-xl">{train.departureTime}</div>
-                  <div className="text-gray-600">{train.departureCity}</div>
-                </div>
-                <ArrowRight className="w-6 h-6 text-gray-400" />
-                <div className="flex-1">
-                  <div className="text-xl">{train.arrivalTime}</div>
-                  <div className="text-gray-600">{train.arrivalCity}</div>
-                </div>
-              </div>
-              <div className="border-t border-gray-200 pt-3 flex justify-between items-center">
-                <div>
-                  <div className="text-sm text-gray-600">Train {train.id}</div>
-                  <div className="text-sm text-gray-600">Date: {train.date}</div>
-                </div>
-                <div className="text-2xl">€{train.price.toFixed(2)}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Passenger Information */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-lg mb-4">Passenger information</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm mb-2 text-gray-700">Full name</label>
-                <input
-                  type="text"
-                  value={passengerName}
-                  onChange={(e) => setPassengerName(e.target.value)}
-                  placeholder="Enter your full name"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm mb-2 text-gray-700">Email</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your.email@example.com"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Payment Section */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-lg mb-4">Payment</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm mb-2 text-gray-700">Payment method</label>
-                <div className="flex items-center gap-2 px-4 py-3 border border-gray-300 rounded-md bg-gray-50">
-                  <CreditCard className="w-5 h-5 text-gray-600" />
-                  <span className="text-gray-600">Credit / Debit Card</span>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm mb-2 text-gray-700">Card number (mock)</label>
-                <input
-                  type="text"
-                  value={cardNumber}
-                  onChange={(e) => setCardNumber(e.target.value)}
-                  placeholder="1234 5678 9012 3456"
-                  maxLength={19}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-                <p className="text-sm text-blue-800">
-                  Note: This is a mock payment interface for demonstration purposes.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Purchase Button */}
-          <button
-            onClick={handlePurchase}
-            disabled={!passengerName || !email || !cardNumber || processing}
-            className="w-full bg-blue-600 text-white py-4 rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-          >
-            {processing ? 'Processing payment...' : 'Pay and generate ticket'}
-          </button>
-        </div>
-      </main>
-    </div>
+      </>
   );
 }
+export default TicketPurchasePage;

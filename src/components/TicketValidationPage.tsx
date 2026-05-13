@@ -1,225 +1,174 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, Camera, Search, CheckCircle, XCircle, LogOut } from 'lucide-react';
+import React, { useState } from 'react';
+import { scanBillet } from '../services/api';
+import { TopNav } from './TopNav';
+import { SubNav } from './SubNav';
 
-interface ValidationResult {
-  status: 'valid' | 'invalid' | 'used';
-  ticketId: string;
-  passengerName?: string;
-  trainId?: string;
-  date?: string;
-  message: string;
-}
+function TicketValidationPage() {
+  const [code, setCode] = useState('');
+  const [result, setResult] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
 
-export function TicketValidationPage() {
-  const [ticketId, setTicketId] = useState('');
-  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
-  const [isValidating, setIsValidating] = useState(false);
+  async function validate() {
+    if (!code) {
+      setResult({
+        type: 'bad',
+        title: '✗ BILLET INVALIDE',
+        detail: 'Please enter a ticket ID.',
+      });
+      return;
+    }
 
-  const handleValidate = () => {
-    setIsValidating(true);
-    
-    // Simulate server validation
-    setTimeout(() => {
-      // Mock validation logic
-      const mockValidTickets = ['TKT-2026-001234', 'TKT-2026-001567', 'TKT-2026-001890'];
-      const mockUsedTickets = ['TKT-2026-001198', 'TKT-2026-001145'];
-      
-      let result: ValidationResult;
-      
-      if (mockValidTickets.includes(ticketId)) {
-        result = {
-          status: 'valid',
-          ticketId: ticketId,
-          passengerName: 'John Smith',
-          trainId: 'TR-101',
-          date: '2026-01-25',
-          message: 'Ticket is valid and ready for use',
-        };
-      } else if (mockUsedTickets.includes(ticketId)) {
-        result = {
-          status: 'used',
-          ticketId: ticketId,
-          passengerName: 'John Smith',
-          trainId: 'TR-312',
-          date: '2026-01-18',
-          message: 'Ticket has already been used',
-        };
+    setLoading(true);
+    setResult(null);
+
+    try {
+      const data = await scanBillet(code);
+      const res = (data.resultat || data.etat || data.etatBillet || '').toUpperCase();
+
+      if (res === 'NON_UTILISE' || res === 'VALIDE') {
+        setResult({
+          type: 'ok',
+          title: '✓ BILLET VALIDE',
+          detail: 'Le billet est valide.',
+        });
+      } else if (res === 'UTILISE') {
+        setResult({
+          type: 'used',
+          title: '✗ BILLET DÉJÀ UTILISÉ',
+          detail: 'Ce billet a déjà été validé précédemment.',
+        });
+      } else if (res === 'EXPIRE') {
+        setResult({
+          type: 'exp',
+          title: '✗ BILLET EXPIRÉ',
+          detail: 'La date de validité de ce billet est dépassée.',
+        });
       } else {
-        result = {
-          status: 'invalid',
-          ticketId: ticketId,
-          message: 'Ticket not found or invalid',
-        };
+        setResult({
+          type: 'bad',
+          title: '✗ BILLET INVALIDE',
+          detail: data.message || 'Code non reconnu dans le système.',
+        });
       }
-      
-      setValidationResult(result);
-      setIsValidating(false);
-    }, 1000);
-  };
+    } catch (err: any) {
+      setResult({
+        type: 'bad',
+        title: '✗ BILLET INVALIDE',
+        detail: err.message || 'Ticket not found or invalid.',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
 
-  const handleLogout = () => {
-    sessionStorage.removeItem('controllerAuth');
-    sessionStorage.removeItem('controllerId');
-    window.location.href = '/controller';
-  };
+  function resultClass(type: string) {
+    if (type === 'ok') return 'res-ok';
+    if (type === 'used') return 'res-used';
+    if (type === 'exp') return 'res-exp';
+    return 'res-bad';
+  }
+
+  function iconStyle(type: string) {
+    if (type === 'ok') return { background: '#bbf7d0', color: '#166534' };
+    if (type === 'used') return { background: '#fde68a', color: '#b45309' };
+    if (type === 'exp') return { background: '#e5e7eb', color: '#6b7280' };
+    return { background: '#fecaca', color: '#dc2626' };
+  }
+
+  function titleColor(type: string) {
+    if (type === 'ok') return '#166534';
+    if (type === 'used') return '#b45309';
+    if (type === 'exp') return '#6b7280';
+    return '#dc2626';
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 py-4">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link to="/" className="text-gray-600 hover:text-gray-900">
-                <ArrowLeft className="w-6 h-6" />
-              </Link>
-              <h1 className="text-2xl text-blue-600">Ticketeer</h1>
+      <>
+        <TopNav />
+        <SubNav />
+
+        <div className="pwrap">
+          <h1 className="page-h">Ticket validation</h1>
+
+          <div className="val-wrap">
+            <div className="scan-area">
+              <div className="scan-icon">▦</div>
+              <span className="scan-txt">QR Code Scanner — Camera feed would appear here</span>
+              <span className="scan-txt2">
+              Position the ticket QR code within the frame to scan automatically
+            </span>
             </div>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
-            >
-              <LogOut className="w-5 h-5" />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
-          </div>
-        </div>
-      </header>
 
-      {/* Main Content */}
-      <main className="max-w-3xl mx-auto px-4 py-8">
-        <h2 className="text-2xl mb-6">Ticket validation</h2>
+            <div className="man-title">Manual ticket validation</div>
 
-        <div className="space-y-6">
-          {/* QR Scanner Placeholder */}
-          <div className="bg-white rounded-lg border border-gray-200 p-8">
-            <div className="flex flex-col items-center">
-              <div className="w-full max-w-md aspect-square bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center mb-4">
-                <Camera className="w-16 h-16 text-gray-400 mb-2" />
-                <p className="text-gray-600">QR Code Scanner</p>
-                <p className="text-sm text-gray-500">Camera feed would appear here</p>
-              </div>
-              <p className="text-sm text-gray-600 text-center">
-                Position the ticket QR code within the frame to scan automatically
-              </p>
-            </div>
-          </div>
-
-          {/* Manual Input */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-lg mb-4">Manual ticket validation</h3>
-            <div className="flex gap-3">
+            <div className="man-row">
               <input
-                type="text"
-                value={ticketId}
-                onChange={(e) => setTicketId(e.target.value)}
-                placeholder="Enter ticket ID (e.g., TKT-2026-001234)"
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                onKeyPress={(e) => e.key === 'Enter' && ticketId && handleValidate()}
+                  type="text"
+                  placeholder="Enter ticket ID e.g., TKT-2026-001234"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
               />
-              <button
-                onClick={handleValidate}
-                disabled={!ticketId || isValidating}
-                className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                <Search className="w-5 h-5" />
-                {isValidating ? 'Validating...' : 'Validate'}
+
+              <button className="btn-val" onClick={validate}>
+                {loading ? 'Validating...' : 'Validate'}
               </button>
             </div>
-          </div>
 
-          {/* Validation Result */}
-          {validationResult && (
-            <div
-              className={`rounded-lg border-2 p-6 ${
-                validationResult.status === 'valid'
-                  ? 'bg-green-50 border-green-500'
-                  : 'bg-red-50 border-red-500'
-              }`}
-            >
-              <div className="flex items-start gap-4">
-                {validationResult.status === 'valid' ? (
-                  <CheckCircle className="w-12 h-12 text-green-600 flex-shrink-0" />
-                ) : (
-                  <XCircle className="w-12 h-12 text-red-600 flex-shrink-0" />
-                )}
-                
-                <div className="flex-1">
-                  <h3
-                    className={`text-xl mb-2 ${
-                      validationResult.status === 'valid' ? 'text-green-900' : 'text-red-900'
-                    }`}
-                  >
-                    {validationResult.status === 'valid'
-                      ? 'Ticket Valid'
-                      : validationResult.status === 'used'
-                      ? 'Ticket Already Used'
-                      : 'Ticket Invalid'}
-                  </h3>
-                  
-                  <p
-                    className={`mb-4 ${
-                      validationResult.status === 'valid' ? 'text-green-800' : 'text-red-800'
-                    }`}
-                  >
-                    {validationResult.message}
-                  </p>
-                  
-                  <div className="space-y-2 text-sm">
-                    <div className="flex gap-2">
-                      <span className="text-gray-600">Ticket ID:</span>
-                      <span className="font-medium">{validationResult.ticketId}</span>
+            {result && (
+                <div className={resultClass(result.type)}>
+                  <div className="res-row">
+                    <div className="res-ic" style={iconStyle(result.type)}>
+                      {result.type === 'ok' ? '✓' : '✕'}
                     </div>
-                    
-                    {validationResult.passengerName && (
-                      <div className="flex gap-2">
-                        <span className="text-gray-600">Passenger:</span>
-                        <span className="font-medium">{validationResult.passengerName}</span>
-                      </div>
-                    )}
-                    
-                    {validationResult.trainId && (
-                      <div className="flex gap-2">
-                        <span className="text-gray-600">Train:</span>
-                        <span className="font-medium">{validationResult.trainId}</span>
-                      </div>
-                    )}
-                    
-                    {validationResult.date && (
-                      <div className="flex gap-2">
-                        <span className="text-gray-600">Date:</span>
-                        <span className="font-medium">{validationResult.date}</span>
-                      </div>
-                    )}
+
+                    <div className="res-title" style={{ color: titleColor(result.type) }}>
+                      {result.title}
+                    </div>
                   </div>
+
+                  <div className="res-det">{result.detail}</div>
                 </div>
+            )}
+
+            <div className="test-panel">
+              <strong>Demo ticket IDs for testing:</strong>
+
+              <div className="trow">
+              <span className="tlbl" style={{ color: '#166534' }}>
+                Valid:
+              </span>
+                <span className="chip" onClick={() => setCode('TKT-2026-001234')}>
+                TKT-2026-001234
+              </span>
+                <span className="chip" onClick={() => setCode('TKT-2026-001567')}>
+                TKT-2026-001567
+              </span>
               </div>
-            </div>
-          )}
 
-          {/* Instructions */}
-          <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-            <h4 className="text-sm mb-2 text-blue-900">Instructions:</h4>
-            <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
-              <li>Scan the passenger's QR code or enter the ticket ID manually</li>
-              <li>Wait for server validation response</li>
-              <li>Valid tickets will turn green and can be marked as used</li>
-              <li>Invalid or already used tickets will be rejected in red</li>
-            </ul>
-          </div>
+              <div className="trow">
+              <span className="tlbl" style={{ color: '#6b7280' }}>
+                Used:
+              </span>
+                <span className="chip" onClick={() => setCode('TKT-2026-001198')}>
+                TKT-2026-001198
+              </span>
+                <span className="chip" onClick={() => setCode('TKT-2026-001145')}>
+                TKT-2026-001145
+              </span>
+              </div>
 
-          {/* Demo Ticket IDs */}
-          <div className="bg-gray-100 border border-gray-300 rounded-md p-4">
-            <h4 className="text-sm mb-2 text-gray-700">Demo ticket IDs for testing:</h4>
-            <div className="text-sm text-gray-700 space-y-1">
-              <div><strong>Valid:</strong> TKT-2026-001234, TKT-2026-001567</div>
-              <div><strong>Used:</strong> TKT-2026-001198, TKT-2026-001145</div>
-              <div><strong>Invalid:</strong> Any other ID</div>
+              <div className="trow">
+              <span className="tlbl" style={{ color: '#dc2626' }}>
+                Invalid:
+              </span>
+                <span className="chip" onClick={() => setCode('INVALID-CODE')}>
+                INVALID-CODE
+              </span>
+              </div>
             </div>
           </div>
         </div>
-      </main>
-    </div>
+      </>
   );
 }
+export default TicketValidationPage;

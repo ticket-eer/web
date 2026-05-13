@@ -1,134 +1,173 @@
-import { Link } from 'react-router-dom';
-import { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Ticket as TicketIcon, ArrowRight } from 'lucide-react';
-import { mockTickets } from '../data/mockData';
+import { asList, getBillets } from '../services/api';
+import { TopNav } from './TopNav';
+import { SubNav } from './SubNav';
 
-export function MyTicketsPage() {
+function MyTicketsPage() {
   const navigate = useNavigate();
 
-  useEffect(() => {
-    // Check if user is authenticated
-    const auth = sessionStorage.getItem('clientAuth');
-    if (!auth) {
-      sessionStorage.setItem('redirectAfterLogin', '/my-tickets');
-      navigate('/client/login');
+  const [tickets, setTickets] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  async function loadTickets() {
+    setLoading(true);
+    setError('');
+
+    try {
+      const data = await getBillets();
+      const list = asList(data);
+      setTickets(list);
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors du chargement des billets');
+    } finally {
+      setLoading(false);
     }
+  }
+
+  useEffect(() => {
+    const token = sessionStorage.getItem('tt');
+
+    if (!token) {
+      navigate('/client/login');
+      return;
+    }
+
+    loadTickets();
   }, [navigate]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'valid':
-        return 'bg-green-100 text-green-800';
-      case 'used':
-        return 'bg-gray-100 text-gray-800';
-      case 'invalid':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
+  function getStatus(ticket: any) {
+    const status = ticket.etatBillet || ticket.etat_billet || 'NON_UTILISE';
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'valid':
-        return 'Valid';
-      case 'used':
-        return 'Used';
-      case 'invalid':
-        return 'Invalid';
-      default:
-        return status;
-    }
-  };
+    if (status === 'NON_UTILISE') return ['bv', 'Valid'];
+    if (status === 'UTILISE') return ['bu', 'Used'];
+    if (status === 'EXPIRE') return ['be', 'Expired'];
+
+    return ['bi', 'Invalid'];
+  }
+
+  function getTrip(ticket: any) {
+    const trajet = ticket.trajet || ticket.trajetDto || ticket.trip || {};
+
+    return {
+      heureDepart: trajet.heureDepart || trajet.heure_depart || '--:--',
+      heureArrivee: trajet.heureArrivee || trajet.heure_arrivee || '--:--',
+      villeDepart: trajet.villeDepart || trajet.ville_depart || '—',
+      villeArrivee: trajet.villeArrivee || trajet.ville_arrivee || '—',
+      train:
+          trajet.train ||
+          ticket.trajetId ||
+          ticket.trajet_id ||
+          ticket.itineraireId ||
+          ticket.itineraire_id ||
+          'N/A',
+      date:
+          trajet.dateVoyage ||
+          trajet.date_voyage ||
+          ticket.dateValidite ||
+          ticket.date_validite ||
+          ticket.dateAchat ||
+          ticket.date_achat ||
+          '',
+    };
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 py-4">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-4">
-            <Link to="/" className="text-gray-600 hover:text-gray-900">
-              <ArrowLeft className="w-6 h-6" />
-            </Link>
-            <h1 className="text-2xl text-blue-600">Ticketeer</h1>
-          </div>
-        </div>
-      </header>
+      <>
+        <TopNav />
+        <SubNav />
 
-      {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl">My tickets</h2>
-          <Link
-            to="/search"
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-          >
-            Book new trip
-          </Link>
-        </div>
+        <div className="pwrap">
+          <div className="row-between">
+            <h1 className="page-h" style={{ margin: 0 }}>
+              My tickets
+            </h1>
 
-        {mockTickets.length === 0 ? (
-          <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
-            <TicketIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-xl mb-2 text-gray-700">No tickets yet</h3>
-            <p className="text-gray-600 mb-6">Start by searching for a trip</p>
-            <Link
-              to="/search"
-              className="inline-block bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700"
-            >
-              Search trips
-            </Link>
+            <button className="btn-blue" onClick={() => navigate('/search')}>
+              Book new trip
+            </button>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {mockTickets.map((ticket) => (
-              <div
-                key={ticket.id}
-                className="bg-white rounded-lg border border-gray-200 p-6 hover:border-blue-500 transition-colors"
-              >
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-sm text-gray-500">{ticket.id}</span>
-                      <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(ticket.status)}`}>
-                        {getStatusText(ticket.status)}
-                      </span>
-                    </div>
-                    
-                    <div className="flex items-center gap-4 mb-2">
-                      <div>
-                        <div className="text-xl">{ticket.train.departureTime}</div>
-                        <div className="text-sm text-gray-600">{ticket.train.departureCity}</div>
-                      </div>
-                      <ArrowRight className="w-5 h-5 text-gray-400" />
-                      <div>
-                        <div className="text-xl">{ticket.train.arrivalTime}</div>
-                        <div className="text-sm text-gray-600">{ticket.train.arrivalCity}</div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-4 text-sm text-gray-600">
-                      <span>Train {ticket.train.id}</span>
-                      <span>•</span>
-                      <span>{ticket.train.date}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-4">
-                    <Link
-                      to={`/ticket/${ticket.id}`}
-                      className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 whitespace-nowrap"
-                    >
-                      View ticket
-                    </Link>
-                  </div>
-                </div>
+
+          {loading && <div className="loading">Loading tickets...</div>}
+
+          {!loading && error && (
+              <div className="empty" style={{ color: '#dc2626' }}>
+                {error}
               </div>
-            ))}
-          </div>
-        )}
-      </main>
-    </div>
+          )}
+
+          {!loading && !error && tickets.length === 0 && (
+              <div className="empty">
+                No tickets yet.{' '}
+                <button
+                    onClick={() => navigate('/search')}
+                    style={{
+                      color: '#2563eb',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      background: 'none',
+                      border: 'none',
+                    }}
+                >
+                  Book a trip →
+                </button>
+              </div>
+          )}
+
+          {!loading && !error && tickets.length > 0 && (
+              <div className="tk-list">
+                {tickets.map((ticket, index) => {
+                  const [badgeClass, badgeLabel] = getStatus(ticket);
+                  const trip = getTrip(ticket);
+
+                  return (
+                      <div className="tk-card" key={ticket.id || ticket.codeOptique || index}>
+                        <div className="tk-left">
+                          <div className="tk-toprow">
+                      <span className="tk-id">
+                        {ticket.id || ticket.codeOptique || ticket.code_optique || 'N/A'}
+                      </span>
+
+                            <span className={`badge ${badgeClass}`}>{badgeLabel}</span>
+                          </div>
+
+                          <div className="tk-times">
+                            <div className="tk-t">
+                              <div className="time">{trip.heureDepart}</div>
+                              <div className="city">{trip.villeDepart}</div>
+                            </div>
+
+                            <span className="tk-sep">→</span>
+
+                            <div className="tk-t">
+                              <div className="time">{trip.heureArrivee}</div>
+                              <div className="city">{trip.villeArrivee}</div>
+                            </div>
+                          </div>
+
+                          <div className="tk-meta">
+                            <span className="tm-train">Train {trip.train}</span> • {trip.date}
+                          </div>
+                        </div>
+
+                        <button
+                            className="btn-view"
+                            onClick={() => {
+                              sessionStorage.setItem('currentTicket', JSON.stringify(ticket));
+                              navigate(`/ticket/${ticket.id || ticket.codeOptique || ticket.code_optique}`);
+                            }}
+                        >
+                          View ticket
+                        </button>
+                      </div>
+                  );
+                })}
+              </div>
+          )}
+        </div>
+      </>
   );
 }
+
+export default MyTicketsPage;

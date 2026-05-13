@@ -1,163 +1,283 @@
-import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, ArrowRight } from 'lucide-react';
-import { cities, generateTrains, Train } from '../data/mockData';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { asList, getTrajets, searchConnections } from '../services/api';
+import { TopNav } from './TopNav';
+import { SubNav } from './SubNav';
+
+const DEFAULT_CITIES = [
+  'Amsterdam',
+  'Barcelona',
+  'Berlin',
+  'Brussels',
+  'Dijon',
+  'London',
+  'Lyon',
+  'Madrid',
+  'Milan',
+  'Munich',
+  'Paris',
+  'Rome',
+  'Vienna',
+];
 
 export function SearchTripPage() {
   const navigate = useNavigate();
-  const [departureCity, setDepartureCity] = useState('');
-  const [arrivalCity, setArrivalCity] = useState('');
-  const [date, setDate] = useState('');
-  const [trains, setTrains] = useState<Train[]>([]);
-  const [searched, setSearched] = useState(false);
+
+  const [cities, setCities] = useState(DEFAULT_CITIES);
+  const [villeDepart, setVilleDepart] = useState('');
+  const [villeArrivee, setVilleArrivee] = useState('');
+  const [dateVoyage, setDateVoyage] = useState(new Date().toISOString().split('T')[0]);
+
+  const [directs, setDirects] = useState<any[]>([]);
+  const [connections, setConnections] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    // Check if user is authenticated
-    const auth = sessionStorage.getItem('clientAuth');
-    if (!auth) {
-      sessionStorage.setItem('redirectAfterLogin', '/search');
-      navigate('/client/login');
+    async function loadCities() {
+      try {
+        const data = await getTrajets();
+        const list = asList(data);
+        const set = new Set<string>();
+
+        list.forEach((t: any) => {
+          if (t.villeDepart) set.add(t.villeDepart);
+          if (t.villeArrivee) set.add(t.villeArrivee);
+          if (t.ville_depart) set.add(t.ville_depart);
+          if (t.ville_arrivee) set.add(t.ville_arrivee);
+        });
+
+        if (set.size) setCities([...set].sort());
+      } catch {
+        setCities(DEFAULT_CITIES);
+      }
     }
-  }, [navigate]);
 
-  const handleSearch = () => {
-    const results = generateTrains(departureCity, arrivalCity, date);
-    setTrains(results);
-    setSearched(true);
-  };
+    loadCities();
+  }, []);
 
-  const handleSelectTrain = (train: Train) => {
-    // Store selected train in sessionStorage for purchase page
-    sessionStorage.setItem('selectedTrain', JSON.stringify(train));
+  async function handleSearch() {
+    setError('');
+    setDirects([]);
+    setConnections([]);
+
+    if (!villeDepart || !villeArrivee || !dateVoyage) {
+      setError('Please fill all fields.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const directData = await getTrajets(villeDepart, villeArrivee, dateVoyage);
+      const directList = asList(directData);
+
+      let connectionList: any[] = [];
+
+      try {
+        const connectionData = await searchConnections(villeDepart, villeArrivee, dateVoyage);
+        connectionList = asList(connectionData);
+      } catch {
+        connectionList = [];
+      }
+
+      setDirects(directList);
+      setConnections(connectionList);
+
+      if (!directList.length && !connectionList.length) {
+        setError('No direct trains or connections available for this route and date.');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Erreur recherche trajets');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function normalizeDirect(t: any) {
+    return {
+      trajetId: t.id || t.trajetId || t.trajet_id || null,
+      itineraireId: null,
+      isConnection: false,
+      villeDepart: t.villeDepart || t.ville_depart || villeDepart,
+      villeArrivee: t.villeArrivee || t.ville_arrivee || villeArrivee,
+      heureDepart: t.heureDepart || t.heure_depart || '--',
+      heureArrivee: t.heureArrivee || t.heure_arrivee || '--',
+      dateVoyage: t.dateVoyage || t.date_voyage || dateVoyage,
+      train: t.train || t.numeroTrain || t.numero_train || t.id || 'N/A',
+      prix: t.prix != null ? t.prix : 45,
+    };
+  }
+
+  function normalizeConnection(c: any) {
+    const segments = c.segments || c.trajets || c.legs || c.etapes || [];
+    const first = segments[0] || c;
+    const last = segments[segments.length - 1] || c;
+
+    return {
+      trajetId: null,
+      itineraireId: c.id || c.itineraireId || c.itineraire_id || null,
+      isConnection: true,
+      villeDepart: first.villeDepart || first.ville_depart || c.villeDepart || villeDepart,
+      villeArrivee: last.villeArrivee || last.ville_arrivee || c.villeArrivee || villeArrivee,
+      heureDepart: first.heureDepart || first.heure_depart || c.heureDepart || '--',
+      heureArrivee: last.heureArrivee || last.heure_arrivee || c.heureArrivee || '--',
+      dateVoyage: c.dateVoyage || c.date_voyage || dateVoyage,
+      train: 'Correspondance',
+      prix: c.prixTotal ?? c.totalPrice ?? c.prix ?? 45,
+      details: segments.length
+          ? segments
+              .map((s: any) => {
+                const vd = s.villeDepart || s.ville_depart || '?';
+                const va = s.villeArrivee || s.ville_arrivee || '?';
+                const hd = s.heureDepart || s.heure_depart || '--';
+                const ha = s.heureArrivee || s.heure_arrivee || '--';
+                return `${vd} → ${va} (${hd}-${ha})`;
+              })
+              .join(' / ')
+          : 'Trip with connection',
+    };
+  }
+
+  function selectTrip(trip: any) {
+    sessionStorage.setItem('selectedTrip', JSON.stringify(trip));
     navigate('/purchase');
-  };
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 py-4">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-4">
-            <Link to="/" className="text-gray-600 hover:text-gray-900">
-              <ArrowLeft className="w-6 h-6" />
-            </Link>
-            <h1 className="text-2xl text-blue-600">Ticketeer</h1>
-          </div>
-        </div>
-      </header>
+      <>
+        <TopNav />
+        <SubNav to="/my-tickets" />
 
-      {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 py-8">
-        <h2 className="text-2xl mb-6">Search a trip</h2>
+        <div className="pwrap">
+          <h1 className="page-h">Search a trip</h1>
 
-        {/* Search Form */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div>
-              <label className="block text-sm mb-2 text-gray-700">Departure city</label>
-              <select
-                value={departureCity}
-                onChange={(e) => setDepartureCity(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Select city</option>
-                {cities.map(city => (
-                  <option key={city.id} value={city.name}>{city.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm mb-2 text-gray-700">Arrival city</label>
-              <select
-                value={arrivalCity}
-                onChange={(e) => setArrivalCity(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Select city</option>
-                {cities.map(city => (
-                  <option key={city.id} value={city.name}>{city.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm mb-2 text-gray-700">Date</label>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-
-          <button
-            onClick={handleSearch}
-            disabled={!departureCity || !arrivalCity || !date || departureCity === arrivalCity}
-            className="w-full bg-blue-600 text-white py-3 rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            <Search className="w-5 h-5" />
-            Search trains
-          </button>
-        </div>
-
-        {/* Results */}
-        {searched && (
-          <div>
-            <h3 className="text-xl mb-4">
-              Available trains {trains.length > 0 && `(${trains.length})`}
-            </h3>
-            
-            {trains.length === 0 ? (
-              <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-                <p className="text-gray-600">No trains found for this route and date.</p>
+          <div className="s-box">
+            <div className="s-grid">
+              <div className="sf">
+                <label>Departure city</label>
+                <select value={villeDepart} onChange={(e) => setVilleDepart(e.target.value)}>
+                  <option value="">Select city...</option>
+                  {cities.map((city) => (
+                      <option key={city}>{city}</option>
+                  ))}
+                </select>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {trains.map((train) => (
-                  <div
-                    key={train.id}
-                    className="bg-white rounded-lg border border-gray-200 p-6 hover:border-blue-500 transition-colors"
-                  >
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-4 mb-2">
-                          <span className="text-sm text-gray-500">Train {train.id}</span>
+
+              <div className="sf">
+                <label>Arrival city</label>
+                <select value={villeArrivee} onChange={(e) => setVilleArrivee(e.target.value)}>
+                  <option value="">Select city...</option>
+                  {cities.map((city) => (
+                      <option key={city}>{city}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="sf">
+                <label>Date</label>
+                <input
+                    type="date"
+                    value={dateVoyage}
+                    onChange={(e) => setDateVoyage(e.target.value)}
+                />
+              </div>
+
+              <button className="btn-srch" onClick={handleSearch}>
+                Search trains
+              </button>
+            </div>
+          </div>
+
+          {loading && <div className="loading">Searching trains and connections...</div>}
+
+          {!loading && error && <div className="err" style={{ display: 'block' }}>{error}</div>}
+
+          {!loading && directs.length > 0 && (
+              <>
+                <div className="res-count">Direct trains ({directs.length})</div>
+
+                {directs.map((item, index) => {
+                  const t = normalizeDirect(item);
+
+                  return (
+                      <div className="tr-card" key={`direct-${index}`}>
+                        <div className="tr-left">
+                          <div className="tr-t">
+                            <div className="time">{t.heureDepart}</div>
+                            <div className="city">{t.villeDepart}</div>
+                          </div>
+
+                          <span style={{ color: '#d1d5db', fontSize: 20 }}>→</span>
+
+                          <div className="tr-t">
+                            <div className="time">{t.heureArrivee}</div>
+                            <div className="city">{t.villeArrivee}</div>
+                          </div>
+
+                          <div className="tr-info">Train {t.train}</div>
                         </div>
-                        <div className="flex items-center gap-4">
+
+                        <div className="tr-right">
                           <div>
-                            <div className="text-2xl">{train.departureTime}</div>
-                            <div className="text-sm text-gray-600">{train.departureCity}</div>
+                            <div className="tr-price">€{t.prix}</div>
+                            <div className="tr-psub">direct trip</div>
                           </div>
-                          <ArrowRight className="w-6 h-6 text-gray-400" />
-                          <div>
-                            <div className="text-2xl">{train.arrivalTime}</div>
-                            <div className="text-sm text-gray-600">{train.arrivalCity}</div>
-                          </div>
+
+                          <button className="btn-sel" onClick={() => selectTrip(t)}>
+                            Select
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <div className="text-2xl">€{train.price.toFixed(2)}</div>
-                          <div className="text-sm text-gray-600">per person</div>
+                  );
+                })}
+              </>
+          )}
+
+          {!loading && connections.length > 0 && (
+              <>
+                <div className="res-count" style={{ marginTop: 22 }}>
+                  Connections ({connections.length})
+                </div>
+
+                {connections.map((item, index) => {
+                  const t = normalizeConnection(item);
+
+                  return (
+                      <div className="tr-card" key={`connection-${index}`}>
+                        <div className="tr-left">
+                          <div className="tr-t">
+                            <div className="time">{t.heureDepart}</div>
+                            <div className="city">{t.villeDepart}</div>
+                          </div>
+
+                          <span style={{ color: '#d1d5db', fontSize: 20 }}>⇄</span>
+
+                          <div className="tr-t">
+                            <div className="time">{t.heureArrivee}</div>
+                            <div className="city">{t.villeArrivee}</div>
+                          </div>
+
+                          <div className="tr-info">{t.details}</div>
                         </div>
-                        <button
-                          onClick={() => handleSelectTrain(train)}
-                          className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 whitespace-nowrap"
-                        >
-                          Select
-                        </button>
+
+                        <div className="tr-right">
+                          <div>
+                            <div className="tr-price">€{t.prix}</div>
+                            <div className="tr-psub">with connection</div>
+                          </div>
+
+                          <button className="btn-sel" onClick={() => selectTrip(t)}>
+                            Select
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </main>
-    </div>
+                  );
+                })}
+              </>
+          )}
+        </div>
+      </>
   );
 }
+export default SearchTripPage;

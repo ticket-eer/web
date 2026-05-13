@@ -1,275 +1,278 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, MapPin, Train as TrainIcon, Ticket, CheckSquare } from 'lucide-react';
-import { cities } from '../data/mockData';
+import React, { useEffect, useState } from 'react';
+import { asList, getAdminBillets, getAdminControles } from '../services/api';
+import { TopNav } from './TopNav';
+import { SubNav } from './SubNav';
 
-type TabType = 'cities' | 'trains' | 'tickets' | 'validations';
+const DC = [
+  { id: 'LON', n: 'London' },
+  { id: 'PAR', n: 'Paris' },
+  { id: 'BER', n: 'Berlin' },
+  { id: 'ROM', n: 'Rome' },
+  { id: 'MAD', n: 'Madrid' },
+  { id: 'AMS', n: 'Amsterdam' },
+  { id: 'VIE', n: 'Vienna' },
+];
 
-export function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<TabType>('cities');
+const DT = [
+  { id: 'TR-101', r: 'London → Paris', f: '3 daily' },
+  { id: 'TR-205', r: 'Berlin → Munich', f: '4 daily' },
+  { id: 'TR-312', r: 'Madrid → Barcelona', f: '5 daily' },
+  { id: 'TR-421', r: 'Rome → Milan', f: '3 daily' },
+  { id: 'TR-508', r: 'Amsterdam → Brussels', f: '6 daily' },
+];
 
-  const mockTrains = [
-    { id: 'TR-101', route: 'London → Paris', departures: '3 daily', status: 'Active' },
-    { id: 'TR-205', route: 'Berlin → Munich', departures: '4 daily', status: 'Active' },
-    { id: 'TR-312', route: 'Madrid → Barcelona', departures: '5 daily', status: 'Active' },
-    { id: 'TR-421', route: 'Rome → Milan', departures: '3 daily', status: 'Active' },
-    { id: 'TR-508', route: 'Amsterdam → Brussels', departures: '6 daily', status: 'Active' },
-  ];
+const DTK = [
+  { id: 'TKT-2026-001234', p: 'John Smith', t: 'TR-101', d: '2026-01-25', s: 'NON_UTILISE' },
+  { id: 'TKT-2026-001233', p: 'Emma Wilson', t: 'TR-205', d: '2026-01-24', s: 'NON_UTILISE' },
+  { id: 'TKT-2026-001198', p: 'John Smith', t: 'TR-312', d: '2026-01-18', s: 'UTILISE' },
+];
 
-  const mockTicketStats = [
-    { id: 'TKT-2026-001234', passenger: 'John Smith', train: 'TR-101', date: '2026-01-25', status: 'Valid' },
-    { id: 'TKT-2026-001233', passenger: 'Emma Wilson', train: 'TR-205', date: '2026-01-24', status: 'Valid' },
-    { id: 'TKT-2026-001198', passenger: 'John Smith', train: 'TR-312', date: '2026-01-18', status: 'Used' },
-    { id: 'TKT-2026-001145', passenger: 'John Smith', train: 'TR-205', date: '2026-01-12', status: 'Used' },
-    { id: 'TKT-2026-001089', passenger: 'Sarah Johnson', train: 'TR-421', date: '2026-01-10', status: 'Used' },
-  ];
+const DV = [
+  { b: 'TKT-2026-001198', c: 'CTRL-045', ts: '2026-01-18 14:23', r: 'UTILISE' },
+  { b: 'TKT-2026-001145', c: 'CTRL-032', ts: '2026-01-12 10:15', r: 'UTILISE' },
+  { b: 'TKT-2026-000954', c: 'CTRL-018', ts: '2026-01-08 09:30', r: 'INVALIDE' },
+];
 
-  const mockValidations = [
-    { ticketId: 'TKT-2026-001198', controller: 'CTRL-045', timestamp: '2026-01-18 14:23', result: 'Valid → Used' },
-    { ticketId: 'TKT-2026-001145', controller: 'CTRL-032', timestamp: '2026-01-12 10:15', result: 'Valid → Used' },
-    { ticketId: 'TKT-2026-001089', controller: 'CTRL-045', timestamp: '2026-01-10 16:42', result: 'Valid → Used' },
-    { ticketId: 'TKT-2026-000954', controller: 'CTRL-018', timestamp: '2026-01-08 09:30', result: 'Invalid - Rejected' },
-  ];
+function AdminDashboard() {
+  const [tab, setTab] = useState('cities');
+  const [apiTickets, setApiTickets] = useState<any[]>([]);
+  const [apiValidations, setApiValidations] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function loadAdmin() {
+      try {
+        const [ticketsRes, controlesRes] = await Promise.allSettled([
+          getAdminBillets(),
+          getAdminControles(),
+        ]);
+
+        if (ticketsRes.status === 'fulfilled') {
+          const list = asList(ticketsRes.value);
+          if (list.length) setApiTickets(list);
+        }
+
+        if (controlesRes.status === 'fulfilled') {
+          const list = asList(controlesRes.value);
+          if (list.length) setApiValidations(list);
+        }
+      } catch {
+        // fallback demo data
+      }
+    }
+
+    loadAdmin();
+  }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 py-4">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-4">
-            <Link to="/" className="text-gray-600 hover:text-gray-900">
-              <ArrowLeft className="w-6 h-6" />
-            </Link>
-            <h1 className="text-2xl text-blue-600">Ticketeer</h1>
+      <>
+        <TopNav />
+        <SubNav />
+
+        <div className="admin-hdr">
+          <div className="admin-hdr-inner">
+            <div className="admin-h1">Admin dashboard</div>
+
+            <div className="tabs">
+              <button
+                  className={`atab ${tab === 'cities' ? 'active' : ''}`}
+                  onClick={() => setTab('cities')}
+              >
+                Manage cities
+              </button>
+
+              <button
+                  className={`atab ${tab === 'trains' ? 'active' : ''}`}
+                  onClick={() => setTab('trains')}
+              >
+                Manage trains
+              </button>
+
+              <button
+                  className={`atab ${tab === 'tickets' ? 'active' : ''}`}
+                  onClick={() => setTab('tickets')}
+              >
+                View tickets
+              </button>
+
+              <button
+                  className={`atab ${tab === 'validations' ? 'active' : ''}`}
+                  onClick={() => setTab('validations')}
+              >
+                View validations
+              </button>
+            </div>
           </div>
         </div>
-      </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        <h2 className="text-2xl mb-6">Admin dashboard</h2>
-
-        {/* Tabs */}
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <div className="border-b border-gray-200">
-            <nav className="flex">
-              <button
-                onClick={() => setActiveTab('cities')}
-                className={`flex-1 px-6 py-4 text-center border-b-2 transition-colors flex items-center justify-center gap-2 ${
-                  activeTab === 'cities'
-                    ? 'border-blue-600 text-blue-600 bg-blue-50'
-                    : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <MapPin className="w-5 h-5" />
-                <span className="hidden sm:inline">Manage cities</span>
-                <span className="sm:hidden">Cities</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('trains')}
-                className={`flex-1 px-6 py-4 text-center border-b-2 transition-colors flex items-center justify-center gap-2 ${
-                  activeTab === 'trains'
-                    ? 'border-blue-600 text-blue-600 bg-blue-50'
-                    : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <TrainIcon className="w-5 h-5" />
-                <span className="hidden sm:inline">Manage trains</span>
-                <span className="sm:hidden">Trains</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('tickets')}
-                className={`flex-1 px-6 py-4 text-center border-b-2 transition-colors flex items-center justify-center gap-2 ${
-                  activeTab === 'tickets'
-                    ? 'border-blue-600 text-blue-600 bg-blue-50'
-                    : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <Ticket className="w-5 h-5" />
-                <span className="hidden sm:inline">View tickets</span>
-                <span className="sm:hidden">Tickets</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('validations')}
-                className={`flex-1 px-6 py-4 text-center border-b-2 transition-colors flex items-center justify-center gap-2 ${
-                  activeTab === 'validations'
-                    ? 'border-blue-600 text-blue-600 bg-blue-50'
-                    : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <CheckSquare className="w-5 h-5" />
-                <span className="hidden sm:inline">View validations</span>
-                <span className="sm:hidden">Validations</span>
-              </button>
-            </nav>
-          </div>
-
-          {/* Tab Content */}
-          <div className="p-6">
-            {/* Cities Tab */}
-            {activeTab === 'cities' && (
-              <div>
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg">Cities in network</h3>
-                  <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-                    Add city
-                  </button>
+        <div className="admin-body">
+          {tab === 'cities' && (
+              <>
+                <div className="sec-hdr">
+                  <span className="sec-title">Cities in network</span>
+                  <button className="btn-blue">Add city</button>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-sm text-gray-600">City ID</th>
-                        <th className="px-4 py-3 text-left text-sm text-gray-600">City name</th>
-                        <th className="px-4 py-3 text-left text-sm text-gray-600">Status</th>
-                        <th className="px-4 py-3 text-left text-sm text-gray-600">Actions</th>
+
+                <table>
+                  <thead>
+                  <tr>
+                    <th>City ID</th>
+                    <th>City name</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                  </thead>
+
+                  <tbody>
+                  {DC.map((city) => (
+                      <tr key={city.id}>
+                        <td>{city.id}</td>
+                        <td>{city.n}</td>
+                        <td>
+                          <span className="badge bv">Active</span>
+                        </td>
+                        <td>
+                          <button className="act">Edit</button>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {cities.map((city) => (
-                        <tr key={city.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm">{city.id}</td>
-                          <td className="px-4 py-3">{city.name}</td>
-                          <td className="px-4 py-3">
-                            <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm">
-                              Active
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <button className="text-blue-600 hover:text-blue-800 text-sm">Edit</button>
+                  ))}
+                  </tbody>
+                </table>
+              </>
+          )}
+
+          {tab === 'trains' && (
+              <>
+                <div className="sec-hdr">
+                  <span className="sec-title">Train routes</span>
+                  <button className="btn-blue">Add train</button>
+                </div>
+
+                <table>
+                  <thead>
+                  <tr>
+                    <th>Train ID</th>
+                    <th>Route</th>
+                    <th>Departures</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                  </thead>
+
+                  <tbody>
+                  {DT.map((train) => (
+                      <tr key={train.id}>
+                        <td>{train.id}</td>
+                        <td>{train.r}</td>
+                        <td>{train.f}</td>
+                        <td>
+                          <span className="badge bv">Active</span>
+                        </td>
+                        <td>
+                          <button className="act">Edit</button>
+                        </td>
+                      </tr>
+                  ))}
+                  </tbody>
+                </table>
+              </>
+          )}
+
+          {tab === 'tickets' && (
+              <>
+                <div className="sec-hdr">
+                  <span className="sec-title">All tickets</span>
+                </div>
+
+                <table>
+                  <thead>
+                  <tr>
+                    <th>Ticket ID</th>
+                    <th>Passenger</th>
+                    <th>Train</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                  </tr>
+                  </thead>
+
+                  <tbody>
+                  {(apiTickets.length
+                          ? apiTickets.map((b) => ({
+                            id: b.id || b.codeOptique || b.code_optique || 'N/A',
+                            p: b.userId || b.user_id || 'N/A',
+                            t: b.trajetId || b.trajet_id || b.itineraireId || b.itineraire_id || 'N/A',
+                            d: b.dateAchat || b.date_achat || 'N/A',
+                            s: b.etatBillet || b.etat_billet || 'NON_UTILISE',
+                          }))
+                          : DTK
+                  ).map((row) => {
+                    const valid = row.s === 'NON_UTILISE';
+
+                    return (
+                        <tr key={row.id}>
+                          <td>{row.id}</td>
+                          <td>{row.p}</td>
+                          <td>{row.t}</td>
+                          <td>{row.d}</td>
+                          <td>
+                        <span className={`badge ${valid ? 'bv' : 'bu'}`}>
+                          {valid ? 'Valid' : 'Used'}
+                        </span>
                           </td>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
+                    );
+                  })}
+                  </tbody>
+                </table>
+              </>
+          )}
 
-            {/* Trains Tab */}
-            {activeTab === 'trains' && (
-              <div>
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg">Train routes</h3>
-                  <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-                    Add train
-                  </button>
+          {tab === 'validations' && (
+              <>
+                <div className="sec-hdr">
+                  <span className="sec-title">Validation history</span>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-sm text-gray-600">Train ID</th>
-                        <th className="px-4 py-3 text-left text-sm text-gray-600">Route</th>
-                        <th className="px-4 py-3 text-left text-sm text-gray-600">Departures</th>
-                        <th className="px-4 py-3 text-left text-sm text-gray-600">Status</th>
-                        <th className="px-4 py-3 text-left text-sm text-gray-600">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {mockTrains.map((train) => (
-                        <tr key={train.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm">{train.id}</td>
-                          <td className="px-4 py-3">{train.route}</td>
-                          <td className="px-4 py-3 text-sm">{train.departures}</td>
-                          <td className="px-4 py-3">
-                            <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm">
-                              {train.status}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <button className="text-blue-600 hover:text-blue-800 text-sm">Edit</button>
+
+                <table>
+                  <thead>
+                  <tr>
+                    <th>Ticket ID</th>
+                    <th>Controller</th>
+                    <th>Timestamp</th>
+                    <th>Result</th>
+                  </tr>
+                  </thead>
+
+                  <tbody>
+                  {(apiValidations.length
+                          ? apiValidations.map((v) => ({
+                            b: v.billetId || v.billet_id || v.id || 'N/A',
+                            c: v.agentId || v.agent_id || 'N/A',
+                            ts: v.dateHeure || v.date_heure || 'N/A',
+                            r: v.resultat || 'INVALIDE',
+                          }))
+                          : DV
+                  ).map((row, index) => {
+                    const ok = row.r === 'UTILISE' || row.r === 'VALIDE';
+
+                    return (
+                        <tr key={`${row.b}-${index}`}>
+                          <td>{row.b}</td>
+                          <td>{row.c}</td>
+                          <td>{row.ts}</td>
+                          <td>
+                        <span className={`badge ${ok ? 'bv' : 'bi'}`}>
+                          {ok ? 'Valid → Used' : 'Invalid - Rejected'}
+                        </span>
                           </td>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* Tickets Tab */}
-            {activeTab === 'tickets' && (
-              <div>
-                <h3 className="text-lg mb-4">All tickets</h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-sm text-gray-600">Ticket ID</th>
-                        <th className="px-4 py-3 text-left text-sm text-gray-600">Passenger</th>
-                        <th className="px-4 py-3 text-left text-sm text-gray-600">Train</th>
-                        <th className="px-4 py-3 text-left text-sm text-gray-600">Date</th>
-                        <th className="px-4 py-3 text-left text-sm text-gray-600">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {mockTicketStats.map((ticket) => (
-                        <tr key={ticket.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm">{ticket.id}</td>
-                          <td className="px-4 py-3">{ticket.passenger}</td>
-                          <td className="px-4 py-3 text-sm">{ticket.train}</td>
-                          <td className="px-4 py-3 text-sm">{ticket.date}</td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={`px-2 py-1 rounded-full text-sm ${
-                                ticket.status === 'Valid'
-                                  ? 'bg-green-100 text-green-800'
-                                  : 'bg-gray-100 text-gray-800'
-                              }`}
-                            >
-                              {ticket.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* Validations Tab */}
-            {activeTab === 'validations' && (
-              <div>
-                <h3 className="text-lg mb-4">Validation history</h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-sm text-gray-600">Ticket ID</th>
-                        <th className="px-4 py-3 text-left text-sm text-gray-600">Controller</th>
-                        <th className="px-4 py-3 text-left text-sm text-gray-600">Timestamp</th>
-                        <th className="px-4 py-3 text-left text-sm text-gray-600">Result</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {mockValidations.map((validation, index) => (
-                        <tr key={index} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm">{validation.ticketId}</td>
-                          <td className="px-4 py-3 text-sm">{validation.controller}</td>
-                          <td className="px-4 py-3 text-sm">{validation.timestamp}</td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={`px-2 py-1 rounded-full text-sm ${
-                                validation.result.includes('Invalid')
-                                  ? 'bg-red-100 text-red-800'
-                                  : 'bg-green-100 text-green-800'
-                              }`}
-                            >
-                              {validation.result}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
+                    );
+                  })}
+                  </tbody>
+                </table>
+              </>
+          )}
         </div>
-      </main>
-    </div>
+      </>
   );
 }
+export default AdminDashboard;

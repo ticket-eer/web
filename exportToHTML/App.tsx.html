@@ -1,0 +1,42 @@
+<html>
+<head>
+<title>App.tsx</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #d5b778;}
+</style>
+</head>
+<body bgcolor="#191a1c">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+App.tsx</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">React from </span><span class="s2">'react'</span><span class="s3">;</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">BrowserRouter </span><span class="s3">as </span><span class="s1">Router</span><span class="s3">, </span><span class="s1">Routes</span><span class="s3">, </span><span class="s1">Route </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'react-router-dom'</span><span class="s3">;</span>
+
+<span class="s0">import </span><span class="s1">LandingPage from </span><span class="s2">'./components/LandingPage'</span><span class="s3">;</span>
+<span class="s0">import </span><span class="s1">ClientLoginPage from </span><span class="s2">'./components/ClientLoginPage'</span><span class="s3">;</span>
+<span class="s0">import </span><span class="s1">RegisterPage from </span><span class="s2">'./components/RegisterPage'</span><span class="s3">;</span>
+<span class="s0">import </span><span class="s1">MyTicketsPage from </span><span class="s2">'./components/MyTicketsPage'</span><span class="s3">;</span>
+<span class="s0">import </span><span class="s1">SearchTripPage from </span><span class="s2">'./components/SearchTripPage'</span><span class="s3">;</span>
+
+<span class="s0">export default function </span><span class="s1">App</span><span class="s3">() {</span>
+  <span class="s0">return </span><span class="s3">(</span>
+      <span class="s4">&lt;Router&gt;</span>
+        <span class="s4">&lt;Routes&gt;</span>
+          <span class="s4">&lt;Route </span><span class="s3">path</span><span class="s2">=&quot;/&quot; </span><span class="s3">element</span><span class="s2">=</span><span class="s3">{</span><span class="s4">&lt;LandingPage /&gt;</span><span class="s3">} </span><span class="s4">/&gt;</span>
+          <span class="s4">&lt;Route </span><span class="s3">path</span><span class="s2">=&quot;/client/login&quot; </span><span class="s3">element</span><span class="s2">=</span><span class="s3">{</span><span class="s4">&lt;ClientLoginPage /&gt;</span><span class="s3">} </span><span class="s4">/&gt;</span>
+          <span class="s4">&lt;Route </span><span class="s3">path</span><span class="s2">=&quot;/register&quot; </span><span class="s3">element</span><span class="s2">=</span><span class="s3">{</span><span class="s4">&lt;RegisterPage /&gt;</span><span class="s3">} </span><span class="s4">/&gt;</span>
+          <span class="s4">&lt;Route </span><span class="s3">path</span><span class="s2">=&quot;/my-tickets&quot; </span><span class="s3">element</span><span class="s2">=</span><span class="s3">{</span><span class="s4">&lt;MyTicketsPage /&gt;</span><span class="s3">} </span><span class="s4">/&gt;</span>
+          <span class="s4">&lt;Route </span><span class="s3">path</span><span class="s2">=&quot;/search&quot; </span><span class="s3">element</span><span class="s2">=</span><span class="s3">{</span><span class="s4">&lt;SearchTripPage /&gt;</span><span class="s3">} </span><span class="s4">/&gt;</span>
+        <span class="s4">&lt;/Routes&gt;</span>
+      <span class="s4">&lt;/Router&gt;</span>
+  <span class="s3">);</span>
+<span class="s3">}</span></pre>
+</body>
+</html>

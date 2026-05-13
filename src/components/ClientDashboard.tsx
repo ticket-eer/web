@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, LogOut, TrendingUp, Calendar, Euro, Ticket } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -13,7 +14,7 @@ interface ClientData {
   email: string;
 }
 
-export function ClientDashboard() {
+function ClientDashboard() {
   const navigate = useNavigate();
   const [clientData, setClientData] = useState<ClientData | null>(null);
 
@@ -218,3 +219,4 @@ export function ClientDashboard() {
     </div>
   );
 }
+export default ClientDashboard;
