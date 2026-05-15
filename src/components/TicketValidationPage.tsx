@@ -130,42 +130,6 @@ function TicketValidationPage() {
                 </div>
             )}
 
-            <div className="test-panel">
-              <strong>Demo ticket IDs for testing:</strong>
-
-              <div className="trow">
-              <span className="tlbl" style={{ color: '#166534' }}>
-                Valid:
-              </span>
-                <span className="chip" onClick={() => setCode('TKT-2026-001234')}>
-                TKT-2026-001234
-              </span>
-                <span className="chip" onClick={() => setCode('TKT-2026-001567')}>
-                TKT-2026-001567
-              </span>
-              </div>
-
-              <div className="trow">
-              <span className="tlbl" style={{ color: '#6b7280' }}>
-                Used:
-              </span>
-                <span className="chip" onClick={() => setCode('TKT-2026-001198')}>
-                TKT-2026-001198
-              </span>
-                <span className="chip" onClick={() => setCode('TKT-2026-001145')}>
-                TKT-2026-001145
-              </span>
-              </div>
-
-              <div className="trow">
-              <span className="tlbl" style={{ color: '#dc2626' }}>
-                Invalid:
-              </span>
-                <span className="chip" onClick={() => setCode('INVALID-CODE')}>
-                INVALID-CODE
-              </span>
-              </div>
-            </div>
           </div>
         </div>
       </>

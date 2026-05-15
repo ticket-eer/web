@@ -78,7 +78,6 @@ function ClientLoginPage() {
               <button onClick={() => navigate('/register')}>Register</button>
             </p>
 
-            <div className="demo-box">Demo: Use any email and password to login/register</div>
           </div>
         </div>
       </>

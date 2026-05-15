@@ -4,26 +4,10 @@ import { asList, getTrajets, searchConnections } from '../services/api';
 import { TopNav } from './TopNav';
 import { SubNav } from './SubNav';
 
-const DEFAULT_CITIES = [
-  'Amsterdam',
-  'Barcelona',
-  'Berlin',
-  'Brussels',
-  'Dijon',
-  'London',
-  'Lyon',
-  'Madrid',
-  'Milan',
-  'Munich',
-  'Paris',
-  'Rome',
-  'Vienna',
-];
-
 export function SearchTripPage() {
   const navigate = useNavigate();
 
-  const [cities, setCities] = useState(DEFAULT_CITIES);
+  const [cities, setCities] = useState<string[]>([]);
   const [villeDepart, setVilleDepart] = useState('');
   const [villeArrivee, setVilleArrivee] = useState('');
   const [dateVoyage, setDateVoyage] = useState(new Date().toISOString().split('T')[0]);
@@ -47,9 +31,9 @@ export function SearchTripPage() {
           if (t.ville_arrivee) set.add(t.ville_arrivee);
         });
 
-        if (set.size) setCities([...set].sort());
+        setCities([...set].sort());
       } catch {
-        setCities(DEFAULT_CITIES);
+        setCities([]);
       }
     }
 
@@ -105,7 +89,7 @@ export function SearchTripPage() {
       heureArrivee: t.heureArrivee || t.heure_arrivee || '--',
       dateVoyage: t.dateVoyage || t.date_voyage || dateVoyage,
       train: t.train || t.numeroTrain || t.numero_train || t.id || 'N/A',
-      prix: t.prix != null ? t.prix : 45,
+      prix: t.prix ?? t.price ?? t.montant ?? null,
     };
   }
 
@@ -124,7 +108,8 @@ export function SearchTripPage() {
       heureArrivee: last.heureArrivee || last.heure_arrivee || c.heureArrivee || '--',
       dateVoyage: c.dateVoyage || c.date_voyage || dateVoyage,
       train: 'Correspondance',
-      prix: c.prixTotal ?? c.totalPrice ?? c.prix ?? 45,
+      prix: c.prixTotal ?? c.totalPrice ?? c.prix ?? c.price ?? c.montant ?? null,
+      length: segments.length,
       details: segments.length
           ? segments
               .map((s: any) => {
@@ -193,47 +178,6 @@ export function SearchTripPage() {
 
           {!loading && error && <div className="err" style={{ display: 'block' }}>{error}</div>}
 
-          {!loading && directs.length > 0 && (
-              <>
-                <div className="res-count">Direct trains ({directs.length})</div>
-
-                {directs.map((item, index) => {
-                  const t = normalizeDirect(item);
-
-                  return (
-                      <div className="tr-card" key={`direct-${index}`}>
-                        <div className="tr-left">
-                          <div className="tr-t">
-                            <div className="time">{t.heureDepart}</div>
-                            <div className="city">{t.villeDepart}</div>
-                          </div>
-
-                          <span style={{ color: '#d1d5db', fontSize: 20 }}>→</span>
-
-                          <div className="tr-t">
-                            <div className="time">{t.heureArrivee}</div>
-                            <div className="city">{t.villeArrivee}</div>
-                          </div>
-
-                          <div className="tr-info">Train {t.train}</div>
-                        </div>
-
-                        <div className="tr-right">
-                          <div>
-                            <div className="tr-price">€{t.prix}</div>
-                            <div className="tr-psub">direct trip</div>
-                          </div>
-
-                          <button className="btn-sel" onClick={() => selectTrip(t)}>
-                            Select
-                          </button>
-                        </div>
-                      </div>
-                  );
-                })}
-              </>
-          )}
-
           {!loading && connections.length > 0 && (
               <>
                 <div className="res-count" style={{ marginTop: 22 }}>
@@ -263,8 +207,10 @@ export function SearchTripPage() {
 
                         <div className="tr-right">
                           <div>
-                            <div className="tr-price">€{t.prix}</div>
-                            <div className="tr-psub">with connection</div>
+                            <div className="tr-price">
+                              {t.prix != null ? `€${Number(t.prix).toFixed(2)}` : 'N/A'}
+                            </div>
+                            <div className="tr-psub">{t.length == 1 ? 'Direct trip' : `${t.length} connections`}</div>
                           </div>
 
                           <button className="btn-sel" onClick={() => selectTrip(t)}>

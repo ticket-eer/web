@@ -3,51 +3,112 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, LogOut, TrendingUp, Calendar, Euro, Ticket } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-
-interface MonthlyExpense {
-  month: string;
-  amount: number;
-}
+import { asList, getBillets, getMe, getStoredUser, getUserBillets } from '../services/api';
 
 interface ClientData {
   name: string;
   email: string;
 }
 
+interface MonthlyExpense {
+  month: string;
+  amount: number;
+  tickets: number;
+}
+
 function ClientDashboard() {
   const navigate = useNavigate();
   const [clientData, setClientData] = useState<ClientData | null>(null);
+  const [tickets, setTickets] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const auth = sessionStorage.getItem('clientAuth');
-    if (!auth) {
-      navigate('/client/login');
-      return;
+    let active = true;
+
+    async function loadDashboard() {
+      setLoading(true);
+
+      try {
+        const storedUser = getStoredUser();
+        const apiUser = await getMe().catch(() => storedUser);
+
+        const userData = apiUser?.id ? apiUser : storedUser;
+
+        if (!userData) {
+          navigate('/client/login');
+          return;
+        }
+
+        if (active) {
+          setClientData({
+            name: userData.nom || userData.name || userData.email || 'User',
+            email: userData.email || '',
+          });
+        }
+
+        const ticketData = userData?.id ? await getUserBillets(userData.id).catch(() => getBillets()) : await getBillets();
+
+        if (active) {
+          setTickets(asList(ticketData));
+        }
+      } catch {
+        navigate('/client/login');
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
     }
-    const userData = JSON.parse(auth);
-    setClientData(userData);
+
+    loadDashboard();
+
+    return () => {
+      active = false;
+    };
   }, [navigate]);
 
   const handleLogout = () => {
     sessionStorage.removeItem('clientAuth');
+    sessionStorage.removeItem('tt');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('tu');
     navigate('/');
   };
 
-  // Mock monthly expenses data
-  const monthlyExpenses: MonthlyExpense[] = [
-    { month: 'Sep 2025', amount: 0 },
-    { month: 'Oct 2025', amount: 87.50 },
-    { month: 'Nov 2025', amount: 145.00 },
-    { month: 'Dec 2025', amount: 203.50 },
-    { month: 'Jan 2026', amount: 142.00 },
-  ];
+  const monthlyExpenses = tickets.reduce<Map<string, MonthlyExpense>>((acc, ticket) => {
+    const amount = Number(ticket.montant ?? ticket.prix ?? ticket.price ?? ticket.transaction?.montant);
+    const rawDate =
+      ticket.dateAchat ||
+      ticket.date_achat ||
+      ticket.dateValidite ||
+      ticket.date_validite ||
+      ticket.transaction?.dateHeure;
 
-  const currentMonthExpenses = monthlyExpenses[monthlyExpenses.length - 1].amount;
-  const previousMonthExpenses = monthlyExpenses[monthlyExpenses.length - 2].amount;
-  const totalExpenses = monthlyExpenses.reduce((sum, item) => sum + item.amount, 0);
-  const averageMonthly = totalExpenses / monthlyExpenses.filter(m => m.amount > 0).length;
+    if (!Number.isFinite(amount) || !rawDate) {
+      return acc;
+    }
 
-  if (!clientData) {
+    const parsedDate = new Date(rawDate);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return acc;
+    }
+
+    const month = new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' }).format(parsedDate);
+    const existing = acc.get(month) || { month, amount: 0, tickets: 0 };
+
+    existing.amount += amount;
+    existing.tickets += 1;
+    acc.set(month, existing);
+    return acc;
+  }, new Map());
+
+  const monthlyExpenseList = Array.from(monthlyExpenses.values());
+  const currentMonthExpenses = monthlyExpenseList[monthlyExpenseList.length - 1]?.amount ?? 0;
+  const previousMonthExpenses = monthlyExpenseList[monthlyExpenseList.length - 2]?.amount ?? 0;
+  const totalExpenses = monthlyExpenseList.reduce((sum, item) => sum + item.amount, 0);
+  const averageMonthly = monthlyExpenseList.length > 0 ? totalExpenses / monthlyExpenseList.length : 0;
+
+  if (loading || !clientData) {
     return null;
   }
 
@@ -133,7 +194,7 @@ function ClientDashboard() {
           <h3 className="text-lg mb-6">Monthly expenses</h3>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyExpenses}>
+                <BarChart data={monthlyExpenseList}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis 
                   dataKey="month" 
@@ -171,14 +232,15 @@ function ClientDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {monthlyExpenses.filter(m => m.amount > 0).reverse().map((expense, index) => {
-                  const ticketCount = Math.floor(expense.amount / 45) + Math.floor(Math.random() * 2);
+                {monthlyExpenseList.slice().reverse().map((expense, index) => {
                   return (
                     <tr key={index} className="hover:bg-gray-50">
                       <td className="px-4 py-3">{expense.month}</td>
-                      <td className="px-4 py-3 text-sm">{ticketCount} tickets</td>
+                      <td className="px-4 py-3 text-sm">{expense.tickets} tickets</td>
                       <td className="px-4 py-3">€{expense.amount.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-sm">€{(expense.amount / ticketCount).toFixed(2)}</td>
+                      <td className="px-4 py-3 text-sm">
+                        €{(expense.tickets > 0 ? expense.amount / expense.tickets : 0).toFixed(2)}
+                      </td>
                     </tr>
                   );
                 })}

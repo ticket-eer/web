@@ -1,278 +1,574 @@
 import React, { useEffect, useState } from 'react';
-import { asList, getAdminBillets, getAdminControles } from '../services/api';
+import {
+  asList,
+  call,
+  createAdminConnection,
+  deleteAdminConnection,
+  getAdminBillets,
+  getAdminConnections,
+  getAdminControles,
+  getAdminDashboard,
+  updateAdminConnection,
+} from '../services/api';
 import { TopNav } from './TopNav';
 import { SubNav } from './SubNav';
 
-const DC = [
-  { id: 'LON', n: 'London' },
-  { id: 'PAR', n: 'Paris' },
-  { id: 'BER', n: 'Berlin' },
-  { id: 'ROM', n: 'Rome' },
-  { id: 'MAD', n: 'Madrid' },
-  { id: 'AMS', n: 'Amsterdam' },
-  { id: 'VIE', n: 'Vienna' },
-];
+async function getAdminTrajets() {
+  return call('GET', '/trajets');
+}
 
-const DT = [
-  { id: 'TR-101', r: 'London → Paris', f: '3 daily' },
-  { id: 'TR-205', r: 'Berlin → Munich', f: '4 daily' },
-  { id: 'TR-312', r: 'Madrid → Barcelona', f: '5 daily' },
-  { id: 'TR-421', r: 'Rome → Milan', f: '3 daily' },
-  { id: 'TR-508', r: 'Amsterdam → Brussels', f: '6 daily' },
-];
+async function createAdminTrajet(data: any) {
+  return call('POST', '/trajets', data);
+}
 
-const DTK = [
-  { id: 'TKT-2026-001234', p: 'John Smith', t: 'TR-101', d: '2026-01-25', s: 'NON_UTILISE' },
-  { id: 'TKT-2026-001233', p: 'Emma Wilson', t: 'TR-205', d: '2026-01-24', s: 'NON_UTILISE' },
-  { id: 'TKT-2026-001198', p: 'John Smith', t: 'TR-312', d: '2026-01-18', s: 'UTILISE' },
-];
+async function updateAdminTrajet(id: number | string, data: any) {
+  return call('PATCH', `/trajets/${id}`, data);
+}
 
-const DV = [
-  { b: 'TKT-2026-001198', c: 'CTRL-045', ts: '2026-01-18 14:23', r: 'UTILISE' },
-  { b: 'TKT-2026-001145', c: 'CTRL-032', ts: '2026-01-12 10:15', r: 'UTILISE' },
-  { b: 'TKT-2026-000954', c: 'CTRL-018', ts: '2026-01-08 09:30', r: 'INVALIDE' },
-];
+async function deleteAdminTrajet(id: number | string) {
+  return call('DELETE', `/trajets/${id}`);
+}
+
+function makeCityId(name: string) {
+  return name
+    .trim()
+    .substring(0, 3)
+    .toUpperCase();
+}
 
 function AdminDashboard() {
   const [tab, setTab] = useState('cities');
+  const [adminStats, setAdminStats] = useState<any>(null);
   const [apiTickets, setApiTickets] = useState<any[]>([]);
   const [apiValidations, setApiValidations] = useState<any[]>([]);
+  const [apiTrajets, setApiTrajets] = useState<any[]>([]);
+  const [apiConnections, setApiConnections] = useState<any[]>([]);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    async function loadAdmin() {
-      try {
-        const [ticketsRes, controlesRes] = await Promise.allSettled([
-          getAdminBillets(),
-          getAdminControles(),
-        ]);
+  const cities = Array.from(
+    new Set(
+      apiTrajets
+        .flatMap((t) => [
+          t.villeDepart || t.ville_depart,
+          t.villeArrivee || t.ville_arrivee,
+        ])
+        .filter(Boolean)
+    )
+  ).map((name: any) => ({
+    id: makeCityId(String(name)),
+    n: String(name),
+  }));
 
-        if (ticketsRes.status === 'fulfilled') {
-          const list = asList(ticketsRes.value);
-          if (list.length) setApiTickets(list);
-        }
+  async function loadAdmin() {
+    setError('');
 
-        if (controlesRes.status === 'fulfilled') {
-          const list = asList(controlesRes.value);
-          if (list.length) setApiValidations(list);
-        }
-      } catch {
-        // fallback demo data
-      }
+    const [dashboardRes, ticketsRes, controlesRes, trajetsRes, connectionsRes] = await Promise.allSettled([
+      getAdminDashboard(),
+      getAdminBillets(),
+      getAdminControles(),
+      getAdminTrajets(),
+      getAdminConnections(),
+    ]);
+
+    if (dashboardRes.status === 'fulfilled') {
+      setAdminStats(dashboardRes.value);
     }
 
+    if (ticketsRes.status === 'fulfilled') {
+      setApiTickets(asList(ticketsRes.value));
+    }
+
+    if (controlesRes.status === 'fulfilled') {
+      setApiValidations(asList(controlesRes.value));
+    }
+
+    if (trajetsRes.status === 'fulfilled') {
+      setApiTrajets(asList(trajetsRes.value));
+    }
+
+    if (connectionsRes.status === 'fulfilled') {
+      setApiConnections(asList(connectionsRes.value));
+    }
+  }
+
+  useEffect(() => {
     loadAdmin();
   }, []);
 
+  async function handleAddTrain() {
+    try {
+      const train = prompt('Nom du train ? Exemple : TGV-101');
+      const villeDepart = prompt('Ville de départ ? Exemple : Paris');
+      const villeArrivee = prompt('Ville arrivée ? Exemple : Lyon');
+      const dateVoyage = prompt('Date voyage ? Exemple : 2026-05-20');
+      const heureDepart = prompt('Heure départ ? Exemple : 10:00');
+      const heureArrivee = prompt('Heure arrivée ? Exemple : 12:00');
+
+      if (!train || !villeDepart || !villeArrivee || !dateVoyage || !heureDepart || !heureArrivee) {
+        return;
+      }
+
+      await createAdminTrajet({
+        train,
+        villeDepart,
+        villeArrivee,
+        dateVoyage,
+        heureDepart,
+        heureArrivee,
+      });
+
+      await loadAdmin();
+    } catch (e: any) {
+      alert(e.message || 'Erreur ajout trajet');
+    }
+  }
+
+  async function handleEditTrain(trainData: any) {
+    try {
+      const id = trainData.id;
+      if (!id) return;
+
+      const train = prompt('Nom du train ?', trainData.train || '');
+      const villeDepart = prompt('Ville de départ ?', trainData.villeDepart || trainData.ville_depart || '');
+      const villeArrivee = prompt('Ville arrivée ?', trainData.villeArrivee || trainData.ville_arrivee || '');
+      const dateVoyage = prompt('Date voyage ?', trainData.dateVoyage || trainData.date_voyage || '');
+      const heureDepart = prompt('Heure départ ?', trainData.heureDepart || trainData.heure_depart || '');
+      const heureArrivee = prompt('Heure arrivée ?', trainData.heureArrivee || trainData.heure_arrivee || '');
+
+      if (!train || !villeDepart || !villeArrivee || !dateVoyage || !heureDepart || !heureArrivee) {
+        return;
+      }
+
+      await updateAdminTrajet(id, {
+        train,
+        villeDepart,
+        villeArrivee,
+        dateVoyage,
+        heureDepart,
+        heureArrivee,
+      });
+
+      await loadAdmin();
+    } catch (e: any) {
+      alert(e.message || 'Erreur modification trajet');
+    }
+  }
+
+  async function handleDeleteTrain(trainData: any) {
+    try {
+      const id = trainData.id;
+      if (!id) return;
+
+      const ok = confirm('Supprimer ce trajet ?');
+      if (!ok) return;
+
+      await deleteAdminTrajet(id);
+      await loadAdmin();
+    } catch (e: any) {
+      alert(e.message || 'Erreur suppression trajet');
+    }
+  }
+
+  async function handleAddConnection() {
+    try {
+      const trajetIdsRaw = prompt('Trajet IDs ? Séparez-les par des virgules. Exemple : 12, 18');
+      const dateVoyage = prompt('Date voyage ? Exemple : 2026-05-20');
+
+      if (!trajetIdsRaw || !dateVoyage) {
+        return;
+      }
+
+      const trajetIds = trajetIdsRaw
+        .split(',')
+        .map((value) => Number(value.trim()))
+        .filter((value) => Number.isFinite(value));
+
+      if (!trajetIds.length) {
+        alert('Veuillez saisir au moins un trajet ID valide.');
+        return;
+      }
+
+      await createAdminConnection({
+        trajetIds,
+        dateVoyage,
+      });
+
+      await loadAdmin();
+    } catch (e: any) {
+      alert(e.message || 'Erreur ajout connection');
+    }
+  }
+
+  async function handleEditConnection(connectionData: any) {
+    try {
+      const id = connectionData.id;
+      if (!id) return;
+
+      const currentTrajetIds = Array.isArray(connectionData.trajetIds)
+        ? connectionData.trajetIds.join(', ')
+        : String(connectionData.trajetIds || connectionData.trajet_ids || '');
+      const trajetIdsRaw = prompt('Trajet IDs ? Séparez-les par des virgules.', currentTrajetIds);
+      const dateVoyage = prompt('Date voyage ?', connectionData.dateVoyage || connectionData.date_voyage || '');
+
+      if (!trajetIdsRaw || !dateVoyage) {
+        return;
+      }
+
+      const trajetIds = trajetIdsRaw
+        .split(',')
+        .map((value) => Number(value.trim()))
+        .filter((value) => Number.isFinite(value));
+
+      if (!trajetIds.length) {
+        alert('Veuillez saisir au moins un trajet ID valide.');
+        return;
+      }
+
+      await updateAdminConnection(id, {
+        trajetIds,
+        dateVoyage,
+      });
+
+      await loadAdmin();
+    } catch (e: any) {
+      alert(e.message || 'Erreur modification connection');
+    }
+  }
+
+  async function handleDeleteConnection(connectionData: any) {
+    try {
+      const id = connectionData.id;
+      if (!id) return;
+
+      const ok = confirm('Supprimer cette connection ?');
+      if (!ok) return;
+
+      await deleteAdminConnection(id);
+      await loadAdmin();
+    } catch (e: any) {
+      alert(e.message || 'Erreur suppression connection');
+    }
+  }
+
   return (
-      <>
-        <TopNav />
-        <SubNav />
+    <>
+      <TopNav />
+      <SubNav />
 
-        <div className="admin-hdr">
-          <div className="admin-hdr-inner">
-            <div className="admin-h1">Admin dashboard</div>
+      <div className="admin-hdr">
+        <div className="admin-hdr-inner">
+          <div className="admin-h1">Admin dashboard</div>
 
-            <div className="tabs">
-              <button
-                  className={`atab ${tab === 'cities' ? 'active' : ''}`}
-                  onClick={() => setTab('cities')}
-              >
-                Manage cities
-              </button>
+          {adminStats && (
+            <div className="admin-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginTop: '16px' }}>
+              <div className="stat-card">
+                <div className="stat-label">Users</div>
+                <div className="stat-value">{adminStats.totalUsers ?? '—'}</div>
+              </div>
 
-              <button
-                  className={`atab ${tab === 'trains' ? 'active' : ''}`}
-                  onClick={() => setTab('trains')}
-              >
-                Manage trains
-              </button>
+              <div className="stat-card">
+                <div className="stat-label">Tickets</div>
+                <div className="stat-value">{adminStats.totalBillets ?? '—'}</div>
+              </div>
 
-              <button
-                  className={`atab ${tab === 'tickets' ? 'active' : ''}`}
-                  onClick={() => setTab('tickets')}
-              >
-                View tickets
-              </button>
+              <div className="stat-card">
+                <div className="stat-label">Transactions</div>
+                <div className="stat-value">{adminStats.totalTransactions ?? '—'}</div>
+              </div>
 
-              <button
-                  className={`atab ${tab === 'validations' ? 'active' : ''}`}
-                  onClick={() => setTab('validations')}
-              >
-                View validations
-              </button>
+              <div className="stat-card">
+                <div className="stat-label">Validations</div>
+                <div className="stat-value">{adminStats.totalControles ?? '—'}</div>
+              </div>
             </div>
+          )}
+
+          <div className="tabs">
+            <button className={`atab ${tab === 'cities' ? 'active' : ''}`} onClick={() => setTab('cities')}>
+              Manage cities
+            </button>
+
+            <button className={`atab ${tab === 'trains' ? 'active' : ''}`} onClick={() => setTab('trains')}>
+              Manage trains
+            </button>
+
+            <button className={`atab ${tab === 'connections' ? 'active' : ''}`} onClick={() => setTab('connections')}>
+              Manage trip
+            </button>
+
+            <button className={`atab ${tab === 'tickets' ? 'active' : ''}`} onClick={() => setTab('tickets')}>
+              View tickets
+            </button>
+
+            <button className={`atab ${tab === 'validations' ? 'active' : ''}`} onClick={() => setTab('validations')}>
+              View validations
+            </button>
           </div>
         </div>
+      </div>
 
-        <div className="admin-body">
-          {tab === 'cities' && (
-              <>
-                <div className="sec-hdr">
-                  <span className="sec-title">Cities in network</span>
-                  <button className="btn-blue">Add city</button>
-                </div>
+      <div className="admin-body">
+        {error && <div className="err">{error}</div>}
 
-                <table>
-                  <thead>
-                  <tr>
-                    <th>City ID</th>
-                    <th>City name</th>
-                    <th>Status</th>
-                    <th>Actions</th>
+        {tab === 'cities' && (
+          <>
+            <div className="sec-hdr">
+              <span className="sec-title">Cities in network</span>
+              <button className="act" onClick={loadAdmin}>
+                Refresh
+              </button>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>City ID</th>
+                  <th>City name</th>
+                  <th>Used in routes</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {cities.map((city) => {
+                  const count = apiTrajets.filter((t) => {
+                    const dep = t.villeDepart || t.ville_depart;
+                    const arr = t.villeArrivee || t.ville_arrivee;
+                    return dep === city.n || arr === city.n;
+                  }).length;
+
+                  return (
+                    <tr key={city.n}>
+                      <td>{city.id}</td>
+                      <td>{city.n}</td>
+                      <td>{count}</td>
+                      <td>
+                        <span className="badge bv">Active</span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </>
+        )}
+
+        {tab === 'trains' && (
+          <>
+            <div className="sec-hdr">
+              <span className="sec-title">Train routes</span>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button className="act" onClick={loadAdmin}>
+                  Refresh
+                </button>
+
+                <button className="btn-blue" onClick={handleAddTrain}>
+                  Add train
+                </button>
+              </div>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Train</th>
+                  <th>Route</th>
+                  <th>Date voyage</th>
+                  <th>Départ</th>
+                  <th>Arrivée</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {apiTrajets.map((train) => (
+                  <tr key={train.id}>
+                    <td>{train.id}</td>
+                    <td>{train.train || 'N/A'}</td>
+                    <td>
+                      {train.villeDepart || train.ville_depart || 'N/A'} →{' '}
+                      {train.villeArrivee || train.ville_arrivee || 'N/A'}
+                    </td>
+                    <td>{train.dateVoyage || train.date_voyage || 'N/A'}</td>
+                    <td>{train.heureDepart || train.heure_depart || 'N/A'}</td>
+                    <td>{train.heureArrivee || train.heure_arrivee || 'N/A'}</td>
+                    <td>
+                      <span className="badge bv">Active</span>
+                    </td>
+                    <td style={{ display: 'flex', gap: '8px' }}>
+                      <button className="act" onClick={() => handleEditTrain(train)}>
+                        Edit
+                      </button>
+                      <button className="act" onClick={() => handleDeleteTrain(train)}>
+                        Delete
+                      </button>
+                    </td>
                   </tr>
-                  </thead>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
 
-                  <tbody>
-                  {DC.map((city) => (
-                      <tr key={city.id}>
-                        <td>{city.id}</td>
-                        <td>{city.n}</td>
-                        <td>
-                          <span className="badge bv">Active</span>
-                        </td>
-                        <td>
-                          <button className="act">Edit</button>
-                        </td>
-                      </tr>
-                  ))}
-                  </tbody>
-                </table>
-              </>
-          )}
+        {tab === 'connections' && (
+          <>
+            <div className="sec-hdr">
+              <span className="sec-title">Connections</span>
 
-          {tab === 'trains' && (
-              <>
-                <div className="sec-hdr">
-                  <span className="sec-title">Train routes</span>
-                  <button className="btn-blue">Add train</button>
-                </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button className="act" onClick={loadAdmin}>
+                  Refresh
+                </button>
 
-                <table>
-                  <thead>
-                  <tr>
-                    <th>Train ID</th>
-                    <th>Route</th>
-                    <th>Departures</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                  </thead>
+                <button className="btn-blue" onClick={handleAddConnection}>
+                  Add connection
+                </button>
+              </div>
+            </div>
 
-                  <tbody>
-                  {DT.map((train) => (
-                      <tr key={train.id}>
-                        <td>{train.id}</td>
-                        <td>{train.r}</td>
-                        <td>{train.f}</td>
-                        <td>
-                          <span className="badge bv">Active</span>
-                        </td>
-                        <td>
-                          <button className="act">Edit</button>
-                        </td>
-                      </tr>
-                  ))}
-                  </tbody>
-                </table>
-              </>
-          )}
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Route</th>
+                  <th>Date voyage</th>
+                  <th>Trajet IDs</th>
+                  <th>Legs</th>
+                  <th>Duration</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
 
-          {tab === 'tickets' && (
-              <>
-                <div className="sec-hdr">
-                  <span className="sec-title">All tickets</span>
-                </div>
+              <tbody>
+                {apiConnections.map((connection) => {
+                  const route = `${connection.villeDepart || connection.ville_depart || 'N/A'} → ${connection.villeArrivee || connection.ville_arrivee || 'N/A'}`;
+                  const trajetIds = Array.isArray(connection.trajetIds)
+                    ? connection.trajetIds.join(', ')
+                    : String(connection.trajetIds || connection.trajet_ids || 'N/A');
+                  const legsCount = connection.legsCount ?? connection.legs_count ?? (Array.isArray(connection.legs) ? connection.legs.length : 'N/A');
+                  const duration = connection.totalDurationMinutes ?? connection.total_duration_minutes;
 
-                <table>
-                  <thead>
-                  <tr>
-                    <th>Ticket ID</th>
-                    <th>Passenger</th>
-                    <th>Train</th>
-                    <th>Date</th>
-                    <th>Status</th>
-                  </tr>
-                  </thead>
+                  return (
+                    <tr key={connection.id}>
+                      <td>{connection.id}</td>
+                      <td>{route}</td>
+                      <td>{connection.dateVoyage || connection.date_voyage || 'N/A'}</td>
+                      <td>{trajetIds}</td>
+                      <td>{legsCount}</td>
+                      <td>{duration != null ? `${duration} min` : 'N/A'}</td>
+                      <td>
+                        <span className="badge bv">Active</span>
+                      </td>
+                      <td style={{ display: 'flex', gap: '8px' }}>
+                        <button className="act" onClick={() => handleEditConnection(connection)}>
+                          Edit
+                        </button>
+                        <button className="act" onClick={() => handleDeleteConnection(connection)}>
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </>
+        )}
 
-                  <tbody>
-                  {(apiTickets.length
-                          ? apiTickets.map((b) => ({
-                            id: b.id || b.codeOptique || b.code_optique || 'N/A',
-                            p: b.userId || b.user_id || 'N/A',
-                            t: b.trajetId || b.trajet_id || b.itineraireId || b.itineraire_id || 'N/A',
-                            d: b.dateAchat || b.date_achat || 'N/A',
-                            s: b.etatBillet || b.etat_billet || 'NON_UTILISE',
-                          }))
-                          : DTK
-                  ).map((row) => {
-                    const valid = row.s === 'NON_UTILISE';
+        {tab === 'tickets' && (
+          <>
+            <div className="sec-hdr">
+              <span className="sec-title">All tickets</span>
+              <button className="act" onClick={loadAdmin}>
+                Refresh
+              </button>
+            </div>
 
-                    return (
-                        <tr key={row.id}>
-                          <td>{row.id}</td>
-                          <td>{row.p}</td>
-                          <td>{row.t}</td>
-                          <td>{row.d}</td>
-                          <td>
+            <table>
+              <thead>
+                <tr>
+                  <th>Ticket ID</th>
+                  <th>Passenger</th>
+                  <th>Train</th>
+                  <th>Price</th>
+                  <th>Date</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {apiTickets.map((b) => {
+                  const status = b.etatBillet || b.etat_billet || 'NON_UTILISE';
+                  const valid = status === 'NON_UTILISE';
+
+                  return (
+                    <tr key={b.id || b.codeOptique}>
+                      <td>{b.id || b.codeOptique || b.code_optique}</td>
+                      <td>{b.userId || b.user_id || 'N/A'}</td>
+                      <td>{b.trajetId || b.trajet_id || b.itineraireId || b.itineraire_id || 'N/A'}</td>
+                      <td>{b.montant !== null && b.montant !== undefined ? `${b.montant} €` : 'N/A'}</td>
+                      <td>{b.dateAchat || b.date_achat || 'N/A'}</td>
+                      <td>
                         <span className={`badge ${valid ? 'bv' : 'bu'}`}>
                           {valid ? 'Valid' : 'Used'}
                         </span>
-                          </td>
-                        </tr>
-                    );
-                  })}
-                  </tbody>
-                </table>
-              </>
-          )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </>
+        )}
 
-          {tab === 'validations' && (
-              <>
-                <div className="sec-hdr">
-                  <span className="sec-title">Validation history</span>
-                </div>
+        {tab === 'validations' && (
+          <>
+            <div className="sec-hdr">
+              <span className="sec-title">Validation history</span>
+              <button className="act" onClick={loadAdmin}>
+                Refresh
+              </button>
+            </div>
 
-                <table>
-                  <thead>
-                  <tr>
-                    <th>Ticket ID</th>
-                    <th>Controller</th>
-                    <th>Timestamp</th>
-                    <th>Result</th>
-                  </tr>
-                  </thead>
+            <table>
+              <thead>
+                <tr>
+                  <th>Ticket ID</th>
+                  <th>Controller</th>
+                  <th>Timestamp</th>
+                  <th>Result</th>
+                </tr>
+              </thead>
 
-                  <tbody>
-                  {(apiValidations.length
-                          ? apiValidations.map((v) => ({
-                            b: v.billetId || v.billet_id || v.id || 'N/A',
-                            c: v.agentId || v.agent_id || 'N/A',
-                            ts: v.dateHeure || v.date_heure || 'N/A',
-                            r: v.resultat || 'INVALIDE',
-                          }))
-                          : DV
-                  ).map((row, index) => {
-                    const ok = row.r === 'UTILISE' || row.r === 'VALIDE';
+              <tbody>
+                {apiValidations.map((v, index) => {
+                  const result = v.resultat || 'INVALIDE';
+                  const ok = result === 'UTILISE' || result === 'VALIDE';
 
-                    return (
-                        <tr key={`${row.b}-${index}`}>
-                          <td>{row.b}</td>
-                          <td>{row.c}</td>
-                          <td>{row.ts}</td>
-                          <td>
+                  return (
+                    <tr key={`${v.id}-${index}`}>
+                      <td>{v.billetId || v.billet_id || v.id || 'N/A'}</td>
+                      <td>{v.agentId || v.agent_id || 'N/A'}</td>
+                      <td>{v.dateHeure || v.date_heure || 'N/A'}</td>
+                      <td>
                         <span className={`badge ${ok ? 'bv' : 'bi'}`}>
                           {ok ? 'Valid → Used' : 'Invalid - Rejected'}
                         </span>
-                          </td>
-                        </tr>
-                    );
-                  })}
-                  </tbody>
-                </table>
-              </>
-          )}
-        </div>
-      </>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </>
+        )}
+      </div>
+    </>
   );
 }
+
 export default AdminDashboard;

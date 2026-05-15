@@ -15,20 +15,12 @@ function ControllerLoginPage() {
     setError('');
 
     try {
-      const data = await login(controllerId + '@ctrl.local', motDePasse);
+      const data = await login(controllerId, motDePasse);
       saveAuth(data);
+      navigate('/controller/validate');
     } catch {
-      saveAuth({
-        token: 'demo-controleur-token',
-        user: {
-          nom: controllerId,
-          email: controllerId + '@ctrl.local',
-          role: 'CONTROLEUR',
-        },
-      });
+      setError('Invalid controller credentials.');
     }
-
-    navigate('/controller/validate');
   }
 
   return (
@@ -72,9 +64,6 @@ function ControllerLoginPage() {
               Login
             </button>
 
-            <div className="demo-box">
-              Demo: Use any controller ID and password to access the validation interface
-            </div>
           </div>
         </div>
       </>

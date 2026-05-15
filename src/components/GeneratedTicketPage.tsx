@@ -1,19 +1,79 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { getBillet, getBilletByCode } from '../services/api';
 import { TopNav } from './TopNav';
 import { SubNav } from './SubNav';
 
 function GeneratedTicketPage() {
   const navigate = useNavigate();
+  const { ticketId } = useParams();
 
-  let ticket: any = null;
+  const [ticket, setTicket] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  try {
-    ticket =
-        JSON.parse(sessionStorage.getItem('currentTicket') || 'null') ||
-        JSON.parse(sessionStorage.getItem('generatedTicket') || 'null');
-  } catch {
-    ticket = null;
+  useEffect(() => {
+    let active = true;
+
+    async function loadTicket() {
+      setLoading(true);
+      setError('');
+
+      const fallbackTicket = (() => {
+        try {
+          return (
+              JSON.parse(sessionStorage.getItem('currentTicket') || 'null') ||
+              JSON.parse(sessionStorage.getItem('generatedTicket') || 'null')
+          );
+        } catch {
+          return null;
+        }
+      })();
+
+      if (!ticketId) {
+        if (active) {
+          setTicket(fallbackTicket);
+          setLoading(false);
+        }
+        return;
+      }
+
+      try {
+        const apiTicket = /^\d+$/.test(ticketId) ? await getBillet(ticketId) : await getBilletByCode(ticketId);
+
+        if (active) {
+          setTicket(apiTicket?.data || apiTicket?.billet || apiTicket || fallbackTicket);
+        }
+      } catch {
+        if (active) {
+          setTicket(fallbackTicket);
+          setError(fallbackTicket ? '' : 'Ticket not found.');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadTicket();
+
+    return () => {
+      active = false;
+    };
+  }, [ticketId]);
+
+  if (loading) {
+    return (
+        <>
+          <TopNav />
+          <SubNav to="/my-tickets" />
+
+          <div className="pwrap" style={{ maxWidth: 700 }}>
+            <div className="loading">Loading ticket...</div>
+          </div>
+        </>
+    );
   }
 
   return (
@@ -30,6 +90,8 @@ function GeneratedTicketPage() {
             </div>
 
             <div className="pcard-body">
+              {error && <div className="err" style={{ display: 'block' }}>{error}</div>}
+
               <div className="info-grid">
                 <div className="ic">
                   <div className="il">Ticket ID</div>

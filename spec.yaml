@@ -8,9 +8,9 @@ info:
     billets numériques avec QR code, contrôle et administration.
 
 servers:
-  - url: http://localhost:8080/api
+  - url: http://localhost:8080
     description: Local
-  - url: https://api.ticketeer.com/api
+  - url: https://api.ticketeer.com
     description: Production
 
 tags:
@@ -18,6 +18,7 @@ tags:
   - name: Users
   - name: Trajets
   - name: Itineraires
+  - name: Connections
   - name: Transactions
   - name: Billets
   - name: Controles
@@ -161,7 +162,9 @@ paths:
     get:
       tags: [Trajets]
       summary: Rechercher les trajets disponibles
-      description: Consultation des trajets disponibles avec filtres. :contentReference[oaicite:5]{index=5}
+      description: Consultation des trajets disponibles avec filtres.
+      security:
+        - bearerAuth: []
       parameters:
         - in: query
           name: villeDepart
@@ -200,6 +203,8 @@ paths:
       tags: [Trajets]
       summary: Créer un trajet
       description: Réservé à l'administration.
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -220,6 +225,8 @@ paths:
     get:
       tags: [Trajets]
       summary: Détail d'un trajet
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/TrajetId'
       responses:
@@ -235,6 +242,8 @@ paths:
     patch:
       tags: [Trajets]
       summary: Modifier un trajet
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/TrajetId'
       requestBody:
@@ -256,6 +265,8 @@ paths:
     delete:
       tags: [Trajets]
       summary: Supprimer un trajet
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/TrajetId'
       responses:
@@ -268,6 +279,8 @@ paths:
     get:
       tags: [Itineraires]
       summary: Rechercher des itinéraires
+      security:
+        - bearerAuth: []
       parameters:
         - in: query
           name: villeDepart
@@ -294,6 +307,8 @@ paths:
       tags: [Itineraires]
       summary: Créer un itinéraire
       description: Réservé à l'administration.
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -312,6 +327,8 @@ paths:
     get:
       tags: [Itineraires]
       summary: Détail d'un itinéraire
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/ItineraireId'
       responses:
@@ -327,6 +344,8 @@ paths:
     patch:
       tags: [Itineraires]
       summary: Modifier un itinéraire
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/ItineraireId'
       requestBody:
@@ -346,11 +365,127 @@ paths:
     delete:
       tags: [Itineraires]
       summary: Supprimer un itinéraire
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/ItineraireId'
       responses:
         '204':
           description: Itinéraire supprimé
+
+  /connections/search:
+    get:
+      tags: [Connections]
+      summary: Rechercher des correspondances (trajets multi-étapes)
+      description: >
+        Recherche les trajets directs et les connections multi-étapes entre deux villes.
+        Par exemple : Havre -> Paris -> Toulouse. Utilise un algorithme BFS avec validation
+        du timing de correspondance (minimum 15 minutes entre les trajets).
+      parameters:
+        - in: query
+          name: villeDepart
+          required: true
+          schema:
+            type: string
+          description: Ville de départ
+        - in: query
+          name: villeArrivee
+          required: true
+          schema:
+            type: string
+          description: Ville de destination
+        - in: query
+          name: dateVoyage
+          required: true
+          schema:
+            type: string
+            format: date
+          description: Date du voyage
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+            default: 10
+      responses:
+        '200':
+          description: Liste des connections trouvées
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectionListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /connections/{connectionId}:
+    get:
+
+      tags: [Connections]
+      summary: Détail d'une connection
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ConnectionId'
+      responses:
+        '200':
+          description: Connection trouvée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Connection'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /connections:
+    get:
+      tags: [Connections]
+      summary: Lister toutes les connections (ADMIN)
+      description: Endpoint réservé aux administrateurs pour consultation et debugging.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: villeDepart
+          schema:
+            type: string
+        - in: query
+          name: villeArrivee
+          schema:
+            type: string
+        - in: query
+          name: dateVoyage
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+            default: 10
+      responses:
+        '200':
+          description: Liste des connections
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectionListResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /transactions:
     get:
@@ -358,6 +493,8 @@ paths:
       summary: Lister les transactions
       description: >
         Un client voit ses transactions. Un admin peut voir toutes les transactions.
+      security:
+        - bearerAuth: []
       parameters:
         - in: query
           name: statut
@@ -376,7 +513,9 @@ paths:
       summary: Créer une transaction / initier un paiement
       description: >
         Enregistre une tentative de paiement pour un trajet ou un itinéraire. Si acceptée,
-        un billet est généré. Conforme aux scénarios d'achat accepté / refusé. :contentReference[oaicite:6]{index=6} :contentReference[oaicite:7]{index=7}
+        un billet est généré. Conforme aux scénarios d'achat accepté / refusé.
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -397,6 +536,8 @@ paths:
     get:
       tags: [Transactions]
       summary: Détail d'une transaction
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/TransactionId'
       responses:
@@ -414,6 +555,8 @@ paths:
       tags: [Transactions]
       summary: Confirmer une transaction
       description: Simule le retour d'un prestataire de paiement.
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/TransactionId'
       requestBody:
@@ -431,13 +574,17 @@ paths:
                 $ref: '#/components/schemas/TransactionWithBilletResponse'
         '404':
           $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /billets:
     get:
       tags: [Billets]
       summary: Lister les billets
       description: >
-        Pour un client, renvoie "Mes billets". Pour un admin, peut renvoyer tous les billets. :contentReference[oaicite:8]{index=8}
+        Pour un client, renvoie "Mes billets". Pour un admin, peut renvoyer tous les billets.
+      security:
+        - bearerAuth: []
       parameters:
         - in: query
           name: etat
@@ -455,6 +602,8 @@ paths:
     get:
       tags: [Billets]
       summary: Détail d'un billet
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/BilletId'
       responses:
@@ -472,6 +621,8 @@ paths:
       tags: [Billets]
       summary: Télécharger le billet
       description: Retourne le billet PDF ou image.
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/BilletId'
       responses:
@@ -482,17 +633,17 @@ paths:
               schema:
                 type: string
                 format: binary
-            image/png:
-              schema:
-                type: string
-                format: binary
         '404':
           $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /billets/{billetId}/qrcode:
     get:
       tags: [Billets]
       summary: Obtenir le QR code du billet
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/BilletId'
       responses:
@@ -503,12 +654,16 @@ paths:
               schema:
                 type: string
                 format: binary
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /billets/code/{codeOptique}:
     get:
       tags: [Billets]
       summary: Rechercher un billet par code optique
       description: Utilisé par l'application de contrôle.
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: codeOptique
@@ -524,12 +679,44 @@ paths:
                 $ref: '#/components/schemas/Billet'
         '404':
           description: Code optique inconnu
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /billets/user/{userId}:
+    get:
+      tags: [Billets]
+      summary: Lister les billets d'un utilisateur
+      description: Permet à un utilisateur de voir ses propres billets, ou à un ADMIN de voir les billets de n'importe quel utilisateur.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - in: query
+          name: etat
+          schema:
+            $ref: '#/components/schemas/EtatBillet'
+          description: Filtrer les billets par leur état.
+      responses:
+        '200':
+          description: Liste des billets de l'utilisateur
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BilletListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Utilisateur non trouvé ou aucun billet.
 
   /controles:
     get:
       tags: [Controles]
       summary: Lister les contrôles
-      description: Historique des validations pour contrôleurs et admins. :contentReference[oaicite:9]{index=9}
+      description: Historique des validations pour contrôleurs et admins.
+      security:
+        - bearerAuth: []
       parameters:
         - in: query
           name: resultat
@@ -538,11 +725,13 @@ paths:
         - in: query
           name: billetId
           schema:
-            type: string
+            type: integer
+            format: int64
         - in: query
           name: agentId
           schema:
-            type: string
+            type: integer
+            format: int64
       responses:
         '200':
           description: Liste des contrôles
@@ -555,6 +744,8 @@ paths:
       tags: [Controles]
       summary: Enregistrer un contrôle manuel
       description: Contrôle saisi manuellement par un contrôleur.
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -575,7 +766,9 @@ paths:
       summary: Scanner / valider un QR code
       description: >
         Recherche un billet par code optique, vérifie son état et enregistre l'opération
-        de contrôle : valide, déjà utilisé, expiré ou invalide. :contentReference[oaicite:10]{index=10} :contentReference[oaicite:11]{index=11}
+        de contrôle : valide, déjà utilisé, expiré ou invalide.
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -596,6 +789,8 @@ paths:
     get:
       tags: [Controles]
       summary: Détail d'un contrôle
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/ControleId'
       responses:
@@ -612,6 +807,8 @@ paths:
     get:
       tags: [UnitesControle]
       summary: Lister les unités de contrôle
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: Liste des unités
@@ -623,6 +820,8 @@ paths:
     post:
       tags: [UnitesControle]
       summary: Créer une unité de contrôle
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -641,6 +840,8 @@ paths:
     get:
       tags: [UnitesControle]
       summary: Détail d'une unité de contrôle
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/UniteId'
       responses:
@@ -656,6 +857,8 @@ paths:
     patch:
       tags: [UnitesControle]
       summary: Modifier une unité de contrôle
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/UniteId'
       requestBody:
@@ -675,6 +878,8 @@ paths:
     delete:
       tags: [UnitesControle]
       summary: Supprimer une unité de contrôle
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/UniteId'
       responses:
@@ -685,6 +890,8 @@ paths:
     get:
       tags: [ServicesTransport]
       summary: Lister les services de transport
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: Liste des services
@@ -696,6 +903,8 @@ paths:
     post:
       tags: [ServicesTransport]
       summary: Créer un service de transport
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -714,6 +923,8 @@ paths:
     get:
       tags: [ServicesTransport]
       summary: Détail d'un service de transport
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/ServiceId'
       responses:
@@ -729,6 +940,8 @@ paths:
     patch:
       tags: [ServicesTransport]
       summary: Modifier un service de transport
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/ServiceId'
       requestBody:
@@ -748,6 +961,8 @@ paths:
     delete:
       tags: [ServicesTransport]
       summary: Supprimer un service de transport
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/ServiceId'
       responses:
@@ -759,6 +974,8 @@ paths:
       tags: [Admin]
       summary: Tableau de bord administrateur
       description: Données agrégées pour l'administration.
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: Indicateurs admin
@@ -771,6 +988,8 @@ paths:
     get:
       tags: [Admin]
       summary: Lister tous les billets
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: Tous les billets
@@ -783,6 +1002,8 @@ paths:
     get:
       tags: [Admin]
       summary: Historique complet des contrôles
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: Tous les contrôles
@@ -790,6 +1011,74 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ControleListResponse'
+
+  /admin/connections:
+   post:
+     tags: [Admin]
+     summary: Créer une connection
+     description: Créer une nouvelle connection avec des trajets spécifiés.
+     security:
+       - bearerAuth: []
+     requestBody:
+       required: true
+       content:
+         application/json:
+           schema:
+             $ref: '#/components/schemas/ConnectionCreateRequest'
+     responses:
+       '201':
+         description: Connection créée
+         content:
+           application/json:
+             schema:
+               $ref: '#/components/schemas/ConnectionDto'
+       '400':
+         $ref: '#/components/responses/BadRequest'
+       '403':
+         $ref: '#/components/responses/Forbidden'
+
+  /admin/connections/{connectionId}:
+    patch:
+     tags: [Admin]
+     summary: Modifier une connection
+     description: Mettre à jour une connection existante.
+     security:
+       - bearerAuth: []
+     parameters:
+       - $ref: '#/components/parameters/ConnectionId'
+     requestBody:
+       required: true
+       content:
+         application/json:
+           schema:
+             $ref: '#/components/schemas/ConnectionUpdateRequest'
+     responses:
+       '200':
+         description: Connection modifiée
+         content:
+           application/json:
+             schema:
+               $ref: '#/components/schemas/ConnectionDto'
+       '404':
+         $ref: '#/components/responses/NotFound'
+       '403':
+         $ref: '#/components/responses/Forbidden'
+
+    delete:
+     tags: [Admin]
+     summary: Supprimer une connection
+     description: Supprimer une connection existante.
+     security:
+       - bearerAuth: []
+     parameters:
+       - $ref: '#/components/parameters/ConnectionId'
+     responses:
+       '204':
+         description: Connection supprimée
+       '404':
+         $ref: '#/components/responses/NotFound'
+       '403':
+         $ref: '#/components/responses/Forbidden'
 
 components:
   securitySchemes:
@@ -804,49 +1093,64 @@ components:
       name: userId
       required: true
       schema:
-        type: string
+        type: integer
+        format: int64
     BilletId:
       in: path
       name: billetId
       required: true
       schema:
-        type: string
+        type: integer
+        format: int64
     TransactionId:
       in: path
       name: transactionId
       required: true
       schema:
-        type: string
+        type: integer
+        format: int64
     TrajetId:
       in: path
       name: trajetId
       required: true
       schema:
-        type: string
+        type: integer
+        format: int64
     ItineraireId:
       in: path
       name: itineraireId
       required: true
       schema:
-        type: string
+        type: integer
+        format: int64
+    ConnectionId:
+      in: path
+      name: connectionId
+      required: true
+      schema:
+        type: integer
+        format: int64
     ControleId:
       in: path
       name: controleId
       required: true
       schema:
-        type: string
+        type: integer
+        format: int64
     UniteId:
       in: path
       name: uniteId
       required: true
       schema:
-        type: string
+        type: integer
+        format: int64
     ServiceId:
       in: path
       name: serviceId
       required: true
       schema:
-        type: string
+        type: integer
+        format: int64
 
   responses:
     BadRequest:
@@ -891,7 +1195,8 @@ components:
       type: object
       properties:
         id:
-          type: string
+          type: integer
+          format: int64
         nom:
           type: string
         email:
@@ -903,7 +1208,8 @@ components:
         role:
           $ref: '#/components/schemas/Role'
         uniteControleId:
-          type: string
+          type: integer
+          format: int64
           nullable: true
         createdAt:
           type: string
@@ -960,14 +1266,16 @@ components:
         role:
           $ref: '#/components/schemas/Role'
         uniteControleId:
-          type: string
+          type: integer
+          format: int64
           nullable: true
 
     Trajet:
       type: object
       properties:
         id:
-          type: string
+          type: integer
+          format: int64
         villeDepart:
           type: string
         villeArrivee:
@@ -984,7 +1292,8 @@ components:
           type: string
           format: time
         itineraireId:
-          type: string
+          type: integer
+          format: int64
           nullable: true
 
     TrajetCreateRequest:
@@ -1008,7 +1317,8 @@ components:
           type: string
           format: time
         itineraireId:
-          type: string
+          type: integer
+          format: int64
           nullable: true
 
     TrajetUpdateRequest:
@@ -1019,7 +1329,8 @@ components:
       type: object
       properties:
         id:
-          type: string
+          type: integer
+          format: int64
         dateCreation:
           type: string
           format: date
@@ -1034,7 +1345,8 @@ components:
         trajetIds:
           type: array
           items:
-            type: string
+            type: integer
+            format: int64
 
     ItineraireUpdateRequest:
       type: object
@@ -1042,13 +1354,15 @@ components:
         trajetIds:
           type: array
           items:
-            type: string
+            type: integer
+            format: int64
 
     Transaction:
       type: object
       properties:
         id:
-          type: string
+          type: integer
+          format: int64
         montant:
           type: number
           format: double
@@ -1060,15 +1374,32 @@ components:
         moyenPaiement:
           type: string
         userId:
-          type: string
+          type: integer
+          format: int64
         billetId:
-          type: string
+          type: integer
+          format: int64
+          nullable: true
+        trajetId:
+          type: integer
+          format: int64
+          nullable: true
+        itineraireId:
+          type: integer
+          format: int64
           nullable: true
 
     TransactionCreateRequest:
       type: object
       required: [moyenPaiement, montant]
       properties:
+        userId:
+          type: integer
+          format: int64
+          nullable: true
+          description: >
+            Optionnel. Permet à un ADMIN de créer une transaction pour un autre utilisateur.
+            Si absent, la transaction est créée pour l'utilisateur authentifié.
         montant:
           type: number
           format: double
@@ -1076,10 +1407,12 @@ components:
           type: string
           example: CARTE
         trajetId:
-          type: string
+          type: integer
+          format: int64
           nullable: true
         itineraireId:
-          type: string
+          type: integer
+          format: int64
           nullable: true
       description: >
         Fournir soit trajetId, soit itineraireId.
@@ -1095,7 +1428,8 @@ components:
       type: object
       properties:
         id:
-          type: string
+          type: integer
+          format: int64
         codeOptique:
           type: string
         dateValidite:
@@ -1107,14 +1441,18 @@ components:
         etatBillet:
           $ref: '#/components/schemas/EtatBillet'
         userId:
-          type: string
+          type: integer
+          format: int64
         transactionId:
-          type: string
+          type: integer
+          format: int64
         trajetId:
-          type: string
+          type: integer
+          format: int64
           nullable: true
         itineraireId:
-          type: string
+          type: integer
+          format: int64
           nullable: true
         qrCodeUrl:
           type: string
@@ -1124,23 +1462,27 @@ components:
       type: object
       properties:
         id:
-          type: string
+          type: integer
+          format: int64
         dateHeure:
           type: string
           format: date-time
         resultat:
           $ref: '#/components/schemas/EtatBillet'
         agentId:
-          type: string
+          type: integer
+          format: int64
         billetId:
-          type: string
+          type: integer
+          format: int64
 
     ControleCreateRequest:
       type: object
       required: [billetId, resultat]
       properties:
         billetId:
-          type: string
+          type: integer
+          format: int64
         resultat:
           $ref: '#/components/schemas/EtatBillet'
 
@@ -1151,7 +1493,8 @@ components:
         codeOptique:
           type: string
         uniteControleId:
-          type: string
+          type: integer
+          format: int64
           nullable: true
 
     ControleScanResponse:
@@ -1181,12 +1524,21 @@ components:
       type: object
       properties:
         id:
-          type: string
+          type: integer
+          format: int64
         modele:
           type: string
         dateAcquisition:
           type: string
           format: date
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
 
     UniteControleCreateRequest:
       type: object
@@ -1211,7 +1563,8 @@ components:
       type: object
       properties:
         id:
-          type: string
+          type: integer
+          format: int64
         villeDepart:
           type: string
         villeArrivee:
@@ -1220,6 +1573,14 @@ components:
           type: string
         frequence:
           type: string
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
 
     ServiceTransportCreateRequest:
       type: object
@@ -1246,21 +1607,34 @@ components:
         frequence:
           type: string
 
+    ServiceTransportListResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceTransport'
+
     AdminDashboardResponse:
       type: object
       properties:
         totalUsers:
           type: integer
+          format: int64
         totalBillets:
           type: integer
+          format: int64
         totalTransactions:
           type: integer
+          format: int64
         totalControles:
           type: integer
+          format: int64
         billetsParEtat:
           type: object
           additionalProperties:
             type: integer
+            format: int64
 
     TransactionWithBilletResponse:
       type: object
@@ -1327,13 +1701,110 @@ components:
           items:
             $ref: '#/components/schemas/UniteControle'
 
-    ServiceTransportListResponse:
+    ConnectionLegDto:
+      type: object
+      description: Un trajet unique dans une connection multi-étapes
+      properties:
+        trajetId:
+          type: integer
+          format: int64
+        villeDepart:
+          type: string
+        villeArrivee:
+          type: string
+        heureDepart:
+          type: string
+          format: time
+        heureArrivee:
+          type: string
+          format: time
+        train:
+          type: string
+
+    Connection:
+      type: object
+      description: Une connection (correspondance) entre deux villes, possiblement multi-étapes
+      properties:
+        id:
+          type: integer
+          format: int64
+        villeDepart:
+          type: string
+        villeArrivee:
+          type: string
+        dateVoyage:
+          type: string
+          format: date
+        legsCount:
+          type: integer
+          description: Nombre de trajets constituant cette connection
+        totalDurationMinutes:
+          type: integer
+          description: Durée totale du trajet depuis départ jusqu'à arrivée
+        legs:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConnectionLegDto'
+
+    ConnectionListResponse:
       type: object
       properties:
         content:
           type: array
           items:
-            $ref: '#/components/schemas/ServiceTransport'
+            $ref: '#/components/schemas/Connection'
+        totalCount:
+          type: integer
+          description: Nombre total de connections trouvées (avant pagination)
+
+    ConnectionDto:
+      type: object
+      description: Data Transfer Object pour une connection
+      properties:
+        id:
+          type: integer
+          format: int64
+        villeDepart:
+          type: string
+        villeArrivee:
+          type: string
+        dateVoyage:
+          type: string
+          format: date
+        legsCount:
+          type: integer
+        totalDurationMinutes:
+          type: integer
+        legs:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConnectionLegDto'
+
+    ConnectionCreateRequest:
+      type: object
+      description: Requête de création d'une connection
+      required: [trajetIds, dateVoyage]
+      properties:
+        trajetIds:
+          type: array
+          minItems: 1
+          items:
+            type: integer
+            format: int64
+        dateVoyage:
+          type: string
+          format: date
+
+    ConnectionUpdateRequest:
+      type: object
+      properties:
+        villeDepart:
+          type: string
+        villeArrivee:
+          type: string
+        dateVoyage:
+          type: string
+          format: date
 
     ErrorResponse:
       type: object
