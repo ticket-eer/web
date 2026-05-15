@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createTransaction, getStoredUser } from '../services/api';
 import { TopNav } from './TopNav';
@@ -30,22 +30,49 @@ function TicketPurchasePage() {
     }
   }, [navigate]);
 
+  const montant = useMemo(() => {
+    const rawPrice =
+      trip?.prix ??
+      trip?.price ??
+      trip?.prixTotal ??
+      trip?.totalPrice ??
+      trip?.montant;
+
+    const value = Number(rawPrice);
+
+    if (!Number.isFinite(value) || value <= 0) {
+      return null;
+    }
+
+    return value;
+  }, [trip]);
+
+  const formattedPrice = montant !== null ? `€${montant.toFixed(2)}` : 'N/A';
+
   async function pay() {
     setError('');
+
+    if (montant === null) {
+      setError(
+        "Prix indisponible depuis l'API. Vérifie que l'admin a bien ajouté un prix au trajet."
+      );
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const montant = Number(trip?.prix ?? trip?.price ?? trip?.montant);
-
-      if (!Number.isFinite(montant) || montant <= 0) {
-        setError('Price not available from the API.');
-        return;
-      }
-
       const trajetId = trip?.isConnection ? null : trip?.trajetId || trip?.id;
-      const itineraireId = trip?.isConnection ? trip?.itineraireId || trip?.id : null;
+      const connectionId = trip?.isConnection
+        ? trip?.connectionId || trip?.itineraireId || trip?.id
+        : null;
 
-      const data = await createTransaction(montant, 'CARTE', trajetId, itineraireId);
+      const data = await createTransaction(
+        montant,
+        'CARTE',
+        trajetId,
+        connectionId
+      );
 
       const billet =
         data.billet ||
@@ -61,11 +88,17 @@ function TicketPurchasePage() {
         ...billet,
         trajet: trip,
         trajetId: billet.trajetId || billet.trajet_id || trajetId,
-        itineraireId: billet.itineraireId || billet.itineraire_id || itineraireId,
+        connectionId: billet.connectionId || billet.connection_id || connectionId,
         montant,
         etatBillet: billet.etatBillet || billet.etat_billet || 'NON_UTILISE',
-        dateAchat: billet.dateAchat || billet.date_achat || new Date().toISOString().slice(0, 10),
-        transactionId: billet.transactionId || billet.transaction_id || data.transaction?.id,
+        dateAchat:
+          billet.dateAchat ||
+          billet.date_achat ||
+          new Date().toISOString().slice(0, 10),
+        transactionId:
+          billet.transactionId ||
+          billet.transaction_id ||
+          data.transaction?.id,
       };
 
       setGeneratedTicket(fullTicket);
@@ -100,14 +133,20 @@ function TicketPurchasePage() {
                 {index > 0 && <div className="sline" />}
                 <div className="step">
                   <div className={`snum ${c}`}>{n < step ? '✓' : n}</div>
-                  <span className={`slbl ${n <= step ? 'active' : 'pending'}`}>{label}</span>
+                  <span className={`slbl ${n <= step ? 'active' : 'pending'}`}>
+                    {label}
+                  </span>
                 </div>
               </React.Fragment>
             );
           })}
         </div>
 
-        {error && <div className="err" style={{ display: 'block' }}>{error}</div>}
+        {error && (
+          <div className="err" style={{ display: 'block' }}>
+            {error}
+          </div>
+        )}
 
         {step === 1 && (
           <div className="pcard">
@@ -138,7 +177,9 @@ function TicketPurchasePage() {
 
                 <div className="ic">
                   <div className="il">Type</div>
-                  <div className="iv">{trip.isConnection ? 'Correspondance' : 'Trajet direct'}</div>
+                  <div className="iv">
+                    {trip.isConnection ? 'Correspondance' : 'Trajet direct'}
+                  </div>
                 </div>
 
                 <div className="ic">
@@ -154,12 +195,14 @@ function TicketPurchasePage() {
 
               <div className="price-row">
                 <span className="price-lbl">Total à payer</span>
-                <span className="price-val">
-                  {Number.isFinite(Number(trip?.prix ?? trip?.price ?? trip?.montant))
-                    ? `€${Number(trip?.prix ?? trip?.price ?? trip?.montant).toFixed(2)}`
-                    : 'N/A'}
-                </span>
+                <span className="price-val">{formattedPrice}</span>
               </div>
+
+              {montant === null && (
+                <div className="warn-note">
+                  ⚠️ Le prix n’est pas disponible depuis l’API. Il faut le renseigner côté admin.
+                </div>
+              )}
             </div>
 
             <div className="pcard-foot">
@@ -167,7 +210,11 @@ function TicketPurchasePage() {
                 ← Retour
               </button>
 
-              <button className="btn-prim" onClick={() => setStep(2)}>
+              <button
+                className="btn-prim"
+                onClick={() => setStep(2)}
+                disabled={montant === null}
+              >
                 Procéder au paiement →
               </button>
             </div>
@@ -194,7 +241,13 @@ function TicketPurchasePage() {
                     background: '#eff6ff',
                   }}
                 >
-                  <span style={{ fontSize: 14, fontWeight: 600, color: '#1d4ed8' }}>
+                  <span
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: '#1d4ed8',
+                    }}
+                  >
                     Credit / Debit Card
                   </span>
                 </div>
@@ -202,7 +255,11 @@ function TicketPurchasePage() {
 
               <div className="fld">
                 <label>Card number</label>
-                <input className="ro-inp" value="1234 4567 8901 2345" placeholder="Provided by the payment API" />
+                <input
+                  className="ro-inp"
+                  value="1234 4567 8901 2345"
+                  readOnly
+                />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -223,11 +280,7 @@ function TicketPurchasePage() {
 
               <div className="price-row">
                 <span className="price-lbl">Total</span>
-                <span className="price-val">
-                  {Number.isFinite(Number(trip?.prix ?? trip?.price ?? trip?.montant))
-                    ? `€${Number(trip?.prix ?? trip?.price ?? trip?.montant).toFixed(2)}`
-                    : 'N/A'}
-                </span>
+                <span className="price-val">{formattedPrice}</span>
               </div>
             </div>
 
@@ -248,14 +301,19 @@ function TicketPurchasePage() {
             <div className="success-top">
               <div className="suc-icon">✓</div>
               <div className="suc-title">Ticket generated successfully</div>
-              <div className="suc-sub">Your ticket has been sent to {user?.email || ''}</div>
+              <div className="suc-sub">
+                Your ticket has been sent to {user?.email || ''}
+              </div>
             </div>
 
             <div className="pcard-body">
               <div className="info-grid">
                 <div className="ic">
                   <div className="il">Ticket ID</div>
-                  <div className="iv" style={{ fontSize: 12, fontFamily: 'monospace' }}>
+                  <div
+                    className="iv"
+                    style={{ fontSize: 12, fontFamily: 'monospace' }}
+                  >
                     {generatedTicket.id || 'N/A'}
                   </div>
                 </div>
@@ -264,6 +322,18 @@ function TicketPurchasePage() {
                   <div className="il">Status</div>
                   <div className="iv">
                     <span className="badge bv">Valid / Not yet used</span>
+                  </div>
+                </div>
+
+                <div className="ic">
+                  <div className="il">Amount</div>
+                  <div className="iv">{formattedPrice}</div>
+                </div>
+
+                <div className="ic">
+                  <div className="il">Transaction</div>
+                  <div className="iv">
+                    {generatedTicket.transactionId || 'N/A'}
                   </div>
                 </div>
               </div>
@@ -276,13 +346,15 @@ function TicketPurchasePage() {
                   ))}
                 </div>
                 <div className="qr-code">
-                  {generatedTicket.codeOptique || generatedTicket.code_optique || 'TKT-CODE'}
+                  {generatedTicket.codeOptique ||
+                    generatedTicket.code_optique ||
+                    'TKT-CODE'}
                 </div>
               </div>
 
               <div className="imp-note">
-                <strong>Important:</strong> This ticket is personal and must be presented during
-                control.
+                <strong>Important:</strong> This ticket is personal and must be
+                presented during control.
               </div>
             </div>
 

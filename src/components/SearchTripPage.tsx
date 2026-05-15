@@ -178,6 +178,51 @@ export function SearchTripPage() {
 
           {!loading && error && <div className="err" style={{ display: 'block' }}>{error}</div>}
 
+          {!loading && directs.length > 0 && (
+              <>
+                <div className="res-count" style={{ marginTop: 22 }}>
+                  Direct trains ({directs.length})
+                </div>
+
+                {directs.map((item, index) => {
+                  const t = normalizeDirect(item);
+
+                  return (
+                      <div className="tr-card" key={`direct-${t.trajetId || index}`}>
+                        <div className="tr-left">
+                          <div className="tr-t">
+                            <div className="time">{t.heureDepart}</div>
+                            <div className="city">{t.villeDepart}</div>
+                          </div>
+
+                          <span style={{ color: '#d1d5db', fontSize: 20 }}>→</span>
+
+                          <div className="tr-t">
+                            <div className="time">{t.heureArrivee}</div>
+                            <div className="city">{t.villeArrivee}</div>
+                          </div>
+
+                          <div className="tr-info">{t.train}</div>
+                        </div>
+
+                        <div className="tr-right">
+                          <div>
+                            <div className="tr-price">
+                              {t.prix != null ? `€${Number(t.prix).toFixed(2)}` : 'N/A'}
+                            </div>
+                            <div className="tr-psub">Direct trip</div>
+                          </div>
+
+                          <button className="btn-sel" onClick={() => selectTrip(t)}>
+                            Select
+                          </button>
+                        </div>
+                      </div>
+                  );
+                })}
+              </>
+          )}
+
           {!loading && connections.length > 0 && (
               <>
                 <div className="res-count" style={{ marginTop: 22 }}>
@@ -188,7 +233,7 @@ export function SearchTripPage() {
                   const t = normalizeConnection(item);
 
                   return (
-                      <div className="tr-card" key={`connection-${index}`}>
+                      <div className="tr-card" key={`connection-${t.itineraireId || index}`}>
                         <div className="tr-left">
                           <div className="tr-t">
                             <div className="time">{t.heureDepart}</div>
@@ -210,7 +255,7 @@ export function SearchTripPage() {
                             <div className="tr-price">
                               {t.prix != null ? `€${Number(t.prix).toFixed(2)}` : 'N/A'}
                             </div>
-                            <div className="tr-psub">{t.length == 1 ? 'Direct trip' : `${t.length} connections`}</div>
+                            <div className="tr-psub">{t.length <= 1 ? 'Direct trip' : `${t.length} trains`}</div>
                           </div>
 
                           <button className="btn-sel" onClick={() => selectTrip(t)}>

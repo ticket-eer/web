@@ -103,8 +103,15 @@ function AdminDashboard() {
       const dateVoyage = prompt('Date voyage ? Exemple : 2026-05-20');
       const heureDepart = prompt('Heure départ ? Exemple : 10:00');
       const heureArrivee = prompt('Heure arrivée ? Exemple : 12:00');
+      const prixRaw = prompt('Prix ? Exemple : 59.90');
 
-      if (!train || !villeDepart || !villeArrivee || !dateVoyage || !heureDepart || !heureArrivee) {
+      if (!train || !villeDepart || !villeArrivee || !dateVoyage || !heureDepart || !heureArrivee || !prixRaw) {
+        return;
+      }
+
+      const prix = Number(prixRaw);
+      if (!Number.isFinite(prix) || prix <= 0) {
+        alert('Veuillez saisir un prix valide.');
         return;
       }
 
@@ -115,6 +122,7 @@ function AdminDashboard() {
         dateVoyage,
         heureDepart,
         heureArrivee,
+        prix,
       });
 
       await loadAdmin();
@@ -134,8 +142,15 @@ function AdminDashboard() {
       const dateVoyage = prompt('Date voyage ?', trainData.dateVoyage || trainData.date_voyage || '');
       const heureDepart = prompt('Heure départ ?', trainData.heureDepart || trainData.heure_depart || '');
       const heureArrivee = prompt('Heure arrivée ?', trainData.heureArrivee || trainData.heure_arrivee || '');
+      const prixRaw = prompt('Prix ?', String(trainData.prix ?? trainData.price ?? ''));
 
-      if (!train || !villeDepart || !villeArrivee || !dateVoyage || !heureDepart || !heureArrivee) {
+      if (!train || !villeDepart || !villeArrivee || !dateVoyage || !heureDepart || !heureArrivee || !prixRaw) {
+        return;
+      }
+
+      const prix = Number(prixRaw);
+      if (!Number.isFinite(prix) || prix <= 0) {
+        alert('Veuillez saisir un prix valide.');
         return;
       }
 
@@ -146,6 +161,7 @@ function AdminDashboard() {
         dateVoyage,
         heureDepart,
         heureArrivee,
+        prix,
       });
 
       await loadAdmin();
@@ -440,6 +456,7 @@ function AdminDashboard() {
                   <th>Date voyage</th>
                   <th>Départ</th>
                   <th>Arrivée</th>
+                  <th>Prix</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
@@ -457,6 +474,7 @@ function AdminDashboard() {
                     <td>{train.dateVoyage || train.date_voyage || 'N/A'}</td>
                     <td>{train.heureDepart || train.heure_depart || 'N/A'}</td>
                     <td>{train.heureArrivee || train.heure_arrivee || 'N/A'}</td>
+                    <td>{train.prix != null || train.price != null ? `${Number(train.prix ?? train.price).toFixed(2)} €` : 'N/A'}</td>
                     <td>
                       <span className="badge bv">Active</span>
                     </td>
@@ -500,6 +518,7 @@ function AdminDashboard() {
                   <th>Trajet IDs</th>
                   <th>Legs</th>
                   <th>Duration</th>
+                  <th>Prix</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
@@ -522,6 +541,7 @@ function AdminDashboard() {
                       <td>{trajetIds}</td>
                       <td>{legsCount}</td>
                       <td>{duration != null ? `${duration} min` : 'N/A'}</td>
+                      <td>{connection.price != null || connection.prix != null ? `${Number(connection.price ?? connection.prix).toFixed(2)} €` : 'N/A'}</td>
                       <td>
                         <span className="badge bv">Active</span>
                       </td>
