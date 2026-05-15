@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { QRCodeSVG } from "qrcode.react";
+import React, { useEffect, useRef, useState } from "react";
+import { QRCodeCanvas } from "qrcode.react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getBillet, getBilletByCode } from "../services/api";
 import { TopNav } from "./TopNav";
@@ -8,6 +8,7 @@ import { SubNav } from "./SubNav";
 function GeneratedTicketPage() {
   const navigate = useNavigate();
   const { ticketId } = useParams();
+  const qrBoxRef = useRef<HTMLDivElement | null>(null);
 
   const [ticket, setTicket] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -110,6 +111,20 @@ function GeneratedTicketPage() {
 
   const { badgeClass, badgeLabel } = getTicketStatus(ticket);
 
+  function downloadQrPng() {
+    const canvas = qrBoxRef.current?.querySelector("canvas");
+
+    if (!canvas) {
+      return;
+    }
+
+    const qrValue = ticket?.codeOptique || ticket?.code_optique || "ticket-qr";
+    const link = document.createElement("a");
+    link.download = `${qrValue}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  }
+
   if (loading) {
     return (
       <>
@@ -162,12 +177,12 @@ function GeneratedTicketPage() {
               </div>
             </div>
 
-            <div className="qr-box">
+            <div className="qr-box" ref={qrBoxRef}>
               <div className="qr-lbl">Validation QR Code</div>
 
               <div className="qr-gen">
                 {ticket?.codeOptique || ticket?.code_optique ? (
-                  <QRCodeSVG
+                  <QRCodeCanvas
                     value={ticket.codeOptique || ticket.code_optique}
                     size={200}
                     level="H"
@@ -181,6 +196,16 @@ function GeneratedTicketPage() {
               <div className="qr-code">
                 {ticket?.codeOptique || ticket?.code_optique || "TKT-CODE"}
               </div>
+
+              {ticket?.codeOptique || ticket?.code_optique ? (
+                <button
+                  className="btn-qr"
+                  onClick={downloadQrPng}
+                  type="button"
+                >
+                  Download QR as PNG
+                </button>
+              ) : null}
             </div>
 
             <div className="imp-note">
