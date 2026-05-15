@@ -77,10 +77,30 @@ function MyTicketsPage() {
     const trajet = ticket.trajet || ticket.trajetDto || ticket.trip || {};
 
     return {
-      heureDepart: trajet.heureDepart || trajet.heure_depart || '--:--',
-      heureArrivee: trajet.heureArrivee || trajet.heure_arrivee || '--:--',
-      villeDepart: trajet.villeDepart || trajet.ville_depart || '—',
-      villeArrivee: trajet.villeArrivee || trajet.ville_arrivee || '—',
+      heureDepart:
+        ticket.heureDepart ||
+        ticket.heure_depart ||
+        trajet.heureDepart ||
+        trajet.heure_depart ||
+        '--:--',
+      heureArrivee:
+        ticket.heureArrivee ||
+        ticket.heure_arrivee ||
+        trajet.heureArrivee ||
+        trajet.heure_arrivee ||
+        '--:--',
+      villeDepart:
+        ticket.villeDepart ||
+        ticket.ville_depart ||
+        trajet.villeDepart ||
+        trajet.ville_depart ||
+        '—',
+      villeArrivee:
+        ticket.villeArrivee ||
+        ticket.ville_arrivee ||
+        trajet.villeArrivee ||
+        trajet.ville_arrivee ||
+        '—',
       train:
         trajet.train ||
         ticket.train ||

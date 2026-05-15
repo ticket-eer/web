@@ -176,9 +176,10 @@ function AdminDashboard() {
       const trajetIdsRaw = prompt('Trajet IDs ? Séparez-les par des virgules. Exemple : 12, 18');
       const dateVoyage = prompt('Date voyage ? Exemple : 2026-05-20');
       const legsCountRaw = prompt('Legs count ? Exemple : 2');
-      const price = prompt('Prix total ? Exemple : 45.50');
+      const totalDurationMinutesRaw = prompt('Durée totale (minutes) ? Exemple : 180');
+      const priceRaw = prompt('Prix total ? Exemple : 45.50');
 
-      if (!villeDepart || !villeArrivee || !trajetIdsRaw || !dateVoyage || !legsCountRaw) {
+      if (!villeDepart || !villeArrivee || !trajetIdsRaw || !dateVoyage || !legsCountRaw || !totalDurationMinutesRaw || !priceRaw) {
         return;
       }
 
@@ -199,12 +200,27 @@ function AdminDashboard() {
         return;
       }
 
+      const totalDurationMinutes = Number(totalDurationMinutesRaw);
+
+      if (!Number.isFinite(totalDurationMinutes) || totalDurationMinutes <= 0) {
+        alert('Veuillez saisir une durée valide.');
+        return;
+      }
+
+      const price = Number(priceRaw);
+
+      if (!Number.isFinite(price) || price < 0) {
+        alert('Veuillez saisir un prix valide.');
+        return;
+      }
+
       await createAdminConnection({
         villeDepart,
         villeArrivee,
         trajetIds,
         dateVoyage,
         legsCount,
+        totalDurationMinutes,
         price
       });
 
@@ -227,8 +243,10 @@ function AdminDashboard() {
       const trajetIdsRaw = prompt('Trajet IDs ? Séparez-les par des virgules.', currentTrajetIds);
       const dateVoyage = prompt('Date voyage ?', connectionData.dateVoyage || connectionData.date_voyage || '');
       const legsCountRaw = prompt('Legs count ?', String(connectionData.legsCount || connectionData.legs_count || ''));
+      const totalDurationMinutesRaw = prompt('Durée totale (minutes) ?', String(connectionData.totalDurationMinutes || connectionData.total_duration_minutes || ''));
+      const priceRaw = prompt('Prix total ?', String(connectionData.price || ''));
 
-      if (!villeDepart || !villeArrivee || !trajetIdsRaw || !dateVoyage || !legsCountRaw) {
+      if (!villeDepart || !villeArrivee || !trajetIdsRaw || !dateVoyage || !legsCountRaw || !totalDurationMinutesRaw || !priceRaw) {
         return;
       }
 
@@ -249,12 +267,28 @@ function AdminDashboard() {
         return;
       }
 
+      const totalDurationMinutes = Number(totalDurationMinutesRaw);
+
+      if (!Number.isFinite(totalDurationMinutes) || totalDurationMinutes <= 0) {
+        alert('Veuillez saisir une durée valide.');
+        return;
+      }
+
+      const price = Number(priceRaw);
+
+      if (!Number.isFinite(price) || price < 0) {
+        alert('Veuillez saisir un prix valide.');
+        return;
+      }
+
       await updateAdminConnection(id, {
         villeDepart,
         villeArrivee,
         trajetIds,
         dateVoyage,
         legsCount,
+        totalDurationMinutes,
+        price,
       });
 
       await loadAdmin();
