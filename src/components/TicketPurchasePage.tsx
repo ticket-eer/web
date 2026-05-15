@@ -202,7 +202,7 @@ function TicketPurchasePage() {
 
               <div className="fld">
                 <label>Card number</label>
-                <input className="ro-inp" value="" readOnly placeholder="Provided by the payment API" />
+                <input className="ro-inp" value="1234 4567 8901 2345" placeholder="Provided by the payment API" />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>

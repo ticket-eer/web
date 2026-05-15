@@ -171,10 +171,14 @@ function AdminDashboard() {
 
   async function handleAddConnection() {
     try {
+      const villeDepart = prompt('Ville de départ ? Exemple : Paris');
+      const villeArrivee = prompt('Ville arrivée ? Exemple : Lyon');
       const trajetIdsRaw = prompt('Trajet IDs ? Séparez-les par des virgules. Exemple : 12, 18');
       const dateVoyage = prompt('Date voyage ? Exemple : 2026-05-20');
+      const legsCountRaw = prompt('Legs count ? Exemple : 2');
+      const price = prompt('Prix total ? Exemple : 45.50');
 
-      if (!trajetIdsRaw || !dateVoyage) {
+      if (!villeDepart || !villeArrivee || !trajetIdsRaw || !dateVoyage || !legsCountRaw) {
         return;
       }
 
@@ -188,9 +192,20 @@ function AdminDashboard() {
         return;
       }
 
+      const legsCount = Number(legsCountRaw);
+
+      if (!Number.isFinite(legsCount) || legsCount <= 0) {
+        alert('Veuillez saisir un legs count valide.');
+        return;
+      }
+
       await createAdminConnection({
+        villeDepart,
+        villeArrivee,
         trajetIds,
         dateVoyage,
+        legsCount,
+        price
       });
 
       await loadAdmin();
@@ -204,13 +219,16 @@ function AdminDashboard() {
       const id = connectionData.id;
       if (!id) return;
 
+      const villeDepart = prompt('Ville de départ ?', connectionData.villeDepart || connectionData.ville_depart || '');
+      const villeArrivee = prompt('Ville arrivée ?', connectionData.villeArrivee || connectionData.ville_arrivee || '');
       const currentTrajetIds = Array.isArray(connectionData.trajetIds)
         ? connectionData.trajetIds.join(', ')
         : String(connectionData.trajetIds || connectionData.trajet_ids || '');
       const trajetIdsRaw = prompt('Trajet IDs ? Séparez-les par des virgules.', currentTrajetIds);
       const dateVoyage = prompt('Date voyage ?', connectionData.dateVoyage || connectionData.date_voyage || '');
+      const legsCountRaw = prompt('Legs count ?', String(connectionData.legsCount || connectionData.legs_count || ''));
 
-      if (!trajetIdsRaw || !dateVoyage) {
+      if (!villeDepart || !villeArrivee || !trajetIdsRaw || !dateVoyage || !legsCountRaw) {
         return;
       }
 
@@ -224,9 +242,19 @@ function AdminDashboard() {
         return;
       }
 
+      const legsCount = Number(legsCountRaw);
+
+      if (!Number.isFinite(legsCount) || legsCount <= 0) {
+        alert('Veuillez saisir un legs count valide.');
+        return;
+      }
+
       await updateAdminConnection(id, {
+        villeDepart,
+        villeArrivee,
         trajetIds,
         dateVoyage,
+        legsCount,
       });
 
       await loadAdmin();

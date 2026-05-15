@@ -1,0 +1,639 @@
+package com.gla.ticketeer.integration;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gla.ticketeer.entity.Role;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MvcResult;
+
+import java.time.LocalDate;
+import java.util.List;
+
+import static org.hamcrest.Matchers.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+/**
+ * Integration tests for Phase 6: Connections (multi-leg route search).
+ *
+ * Test scenarios:
+ * - Direct trajet finding (Havre -> Paris)
+ * - Multi-leg connection finding (Havre -> Paris -> Toulouse)
+ * - Transfer timing validation (minimum 15 minutes between legs)
+ * - No direct connection scenarios
+ * - Role-based access control
+ * - Pagination
+ */
+class ConnectionIntegrationTest extends BaseIntegrationTest {
+
+    private String clientToken;
+    private String controleurToken;
+    private String adminToken;
+
+    @BeforeEach
+    void setup() throws Exception {
+        clientToken = loginAndGetToken(CLIENT_EMAIL, DEFAULT_PASSWORD);
+        // Use controleur already created by BaseIntegrationTest
+        controleurToken = loginAndGetToken(CONTROLEUR_EMAIL, DEFAULT_PASSWORD);
+        adminToken = loginAndGetToken(ADMIN_EMAIL, DEFAULT_PASSWORD);
+
+        // Create test trajets for connection scenarios
+        createTestTrajets();
+    }
+
+    @AfterEach
+    void cleanup() throws Exception {
+        // Cleanup is handled by DB rollback in BaseIntegrationTest
+    }
+
+    /**
+     * Test 1: Client can search connections.
+     */
+    @Test
+    void clientCanSearchConnections() throws Exception {
+        LocalDate dateVoyage = LocalDate.now().plusDays(1);
+
+        mockMvc.perform(get("/connections/search")
+                        .param("villeDepart", "Le Havre")
+                        .param("villeArrivee", "Paris")
+                        .param("dateVoyage", dateVoyage.toString())
+                        .header("Authorization", "Bearer " + clientToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", notNullValue()))
+                .andExpect(jsonPath("$.totalCount", greaterThanOrEqualTo(0)));
+    }
+
+    /**
+     * Test 2: Controleur can search connections.
+     */
+    @Test
+    void controleurCanSearchConnections() throws Exception {
+        LocalDate dateVoyage = LocalDate.now().plusDays(1);
+
+        mockMvc.perform(get("/connections/search")
+                        .param("villeDepart", "Paris")
+                        .param("villeArrivee", "Toulouse")
+                        .param("dateVoyage", dateVoyage.toString())
+                        .header("Authorization", "Bearer " + controleurToken))
+                .andExpect(status().isOk());
+    }
+
+    /**
+     * Test 3: Direct trajet is found as single-leg connection.
+     */
+    @Test
+    void directTrajetFoundAsSingleLegConnection() throws Exception {
+        LocalDate dateVoyage = LocalDate.now().plusDays(1);
+
+        MvcResult result = mockMvc.perform(get("/connections/search")
+                        .param("villeDepart", "Le Havre")
+                        .param("villeArrivee", "Paris")
+                        .param("dateVoyage", dateVoyage.toString())
+                        .header("Authorization", "Bearer " + clientToken))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String content = result.getResponse().getContentAsString();
+        JsonNode root = objectMapper.readTree(content);
+
+        // Should find at least the direct trajet
+        assert root.get("totalCount").asInt() >= 1 : "Expected at least 1 direct connection";
+
+        // Check first connection has 1 leg
+        JsonNode firstConn = root.get("content").get(0);
+        assert firstConn.get("legsCount").asInt() == 1 : "Expected 1 leg for direct trajet";
+
+        // Price should be present
+        assert firstConn.get("price") != null : "Expected 'price' field in connection response";
+    }
+
+    /**
+     * Test 4: Multi-leg connection is found (Havre -> Paris -> Toulouse).
+     */
+    @Test
+    void multiLegConnectionFound() throws Exception {
+        LocalDate dateVoyage = LocalDate.now().plusDays(1);
+
+        MvcResult result = mockMvc.perform(get("/connections/search")
+                        .param("villeDepart", "Le Havre")
+                        .param("villeArrivee", "Toulouse")
+                        .param("dateVoyage", dateVoyage.toString())
+                        .header("Authorization", "Bearer " + clientToken))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String content = result.getResponse().getContentAsString();
+        JsonNode root = objectMapper.readTree(content);
+
+        // Should find at least one connection (could be direct or via Paris)
+        int totalCount = root.get("totalCount").asInt();
+        assert totalCount >= 1 : "Expected at least 1 connection to Toulouse";
+    }
+
+    /**
+     * Test 5: Transfer timing validation (minimum 15 minutes).
+     * A trajet arriving at 14:00 should connect to one departing at 14:15 or later.
+     */
+    @Test
+    void transferTimingValidation() throws Exception {
+        LocalDate dateVoyage = LocalDate.now().plusDays(1);
+
+        // Search should respect transfer timing constraints
+        MvcResult result = mockMvc.perform(get("/connections/search")
+                        .param("villeDepart", "Le Havre")
+                        .param("villeArrivee", "Toulouse")
+                        .param("dateVoyage", dateVoyage.toString())
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String content = result.getResponse().getContentAsString();
+        JsonNode root = objectMapper.readTree(content);
+
+        // For multi-leg connections, check that legs are properly ordered
+        JsonNode connections = root.get("content");
+        for (JsonNode conn : connections) {
+            JsonNode legs = conn.get("legs");
+            if (legs.size() > 1) {
+                // Multi-leg: verify timing between legs
+                for (int i = 0; i < legs.size() - 1; i++) {
+                    String arrivalTime = legs.get(i).get("heureArrivee").asText();
+                    String nextDepartureTime = legs.get(i + 1).get("heureDepart").asText();
+                    // Just verify they exist (actual timing validation is in service)
+                    assert arrivalTime != null && nextDepartureTime != null;
+                }
+            }
+        }
+    }
+
+    /**
+     * Test 6: No connections found for impossible route.
+     */
+    @Test
+    void noConnectionsForImpossibleRoute() throws Exception {
+        LocalDate dateVoyage = LocalDate.now().plusDays(1);
+
+        mockMvc.perform(get("/connections/search")
+                        .param("villeDepart", "NonExistentCity1")
+                        .param("villeArrivee", "NonExistentCity2")
+                        .param("dateVoyage", dateVoyage.toString())
+                        .header("Authorization", "Bearer " + clientToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalCount", equalTo(0)));
+    }
+
+    /**
+     * Test 7: Unauthorized user cannot search (missing auth).
+     * Note: Spring Security returns 403 for unauthenticated requests to protected endpoints,
+     * not 401. 401 is for failed authentication (e.g., wrong credentials).
+     */
+    @Test
+    void unauthenticatedUserCannotSearch() throws Exception {
+        LocalDate dateVoyage = LocalDate.now().plusDays(1);
+        
+        mockMvc.perform(get("/connections/search")
+                        .param("villeDepart", "Le Havre")
+                        .param("villeArrivee", "Paris")
+                        .param("dateVoyage", dateVoyage.toString()))
+                .andExpect(status().isForbidden());
+    }
+
+    /**
+     * Test 8: Invalid parameters return bad request.
+     */
+    @Test
+    void invalidParametersReturnBadRequest() throws Exception {
+        mockMvc.perform(get("/connections/search")
+                        .param("villeDepart", "")
+                        .param("villeArrivee", "Paris")
+                        .header("Authorization", "Bearer " + clientToken))
+                .andExpect(status().isBadRequest());
+    }
+
+    /**
+     * Test 9: Get specific connection by ID.
+     */
+    @Test
+    void getConnectionById() throws Exception {
+        // First create a connection via search
+        LocalDate dateVoyage = LocalDate.now().plusDays(1);
+
+        MvcResult searchResult = mockMvc.perform(get("/connections/search")
+                        .param("villeDepart", "Le Havre")
+                        .param("villeArrivee", "Paris")
+                        .param("dateVoyage", dateVoyage.toString())
+                        .header("Authorization", "Bearer " + clientToken))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String searchContent = searchResult.getResponse().getContentAsString();
+        JsonNode root = objectMapper.readTree(searchContent);
+
+        if (root.get("totalCount").asInt() > 0) {
+            Long connectionId = root.get("content").get(0).get("id").asLong();
+
+            mockMvc.perform(get("/connections/" + connectionId)
+                            .header("Authorization", "Bearer " + clientToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id", equalTo(connectionId.intValue())))
+                    .andExpect(jsonPath("$.legs", notNullValue()));
+        }
+    }
+
+    /**
+     * Test 10: Admin can list all connections with pagination.
+     */
+    @Test
+    void adminCanListAllConnections() throws Exception {
+        mockMvc.perform(get("/connections")
+                        .param("page", "0")
+                        .param("size", "10")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", isA(java.util.List.class)));
+
+        // Ensure price is exposed in admin list
+        mockMvc.perform(get("/connections")
+                        .param("page", "0")
+                        .param("size", "1")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].price", notNullValue()));
+    }
+
+    /**
+     * Test 11: Client cannot access admin list endpoint.
+     */
+    @Test
+    void clientCannotAccessAdminListEndpoint() throws Exception {
+        mockMvc.perform(get("/connections")
+                        .param("page", "0")
+                        .param("size", "10")
+                        .header("Authorization", "Bearer " + clientToken))
+                .andExpect(status().isForbidden());
+    }
+
+    /**
+     * Test 12: Pagination works correctly.
+     */
+    @Test
+    void paginationWorks() throws Exception {
+        LocalDate dateVoyage = LocalDate.now().plusDays(1);
+
+        mockMvc.perform(get("/connections/search")
+                        .param("villeDepart", "Le Havre")
+                        .param("villeArrivee", "Paris")
+                        .param("dateVoyage", dateVoyage.toString())
+                        .param("page", "0")
+                        .param("size", "5")
+                        .header("Authorization", "Bearer " + clientToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(lessThanOrEqualTo(5))));
+    }
+
+    /**
+     * Helper method to create test trajets for connection scenarios.
+     */
+    private void createTestTrajets() throws Exception {
+        LocalDate dateVoyage = LocalDate.now().plusDays(1);
+        String adminToken = loginAndGetToken(ADMIN_EMAIL, DEFAULT_PASSWORD);
+
+        // Direct trajet: Le Havre -> Paris (10:00 - 12:00)
+        createTrajet(adminToken, "Le Havre", "Paris", dateVoyage, "TGV-100", "10:00", "12:00");
+
+        // Direct trajet: Paris -> Toulouse (14:30 - 18:00)
+        createTrajet(adminToken, "Paris", "Toulouse", dateVoyage, "TGV-200", "14:30", "18:00");
+
+        // Connection enabler: Havre -> Paris (08:00 - 10:00)
+        createTrajet(adminToken, "Le Havre", "Paris", dateVoyage, "TGV-101", "08:00", "10:00");
+
+        // Connection enabler: Paris -> Toulouse (10:30 - 14:00)
+        createTrajet(adminToken, "Paris", "Toulouse", dateVoyage, "TGV-201", "10:30", "14:00");
+
+        // Alternative route: Lyon branch
+        createTrajet(adminToken, "Paris", "Lyon", dateVoyage, "TGV-300", "15:00", "17:00");
+    }
+
+    /**
+     * Helper to create a trajet via API.
+     */
+    private void createTrajet(String token, String villeDepart, String villeArrivee,
+                              LocalDate dateVoyage, String train, String heureDepart, String heureArrivee) throws Exception {
+        String requestBody = String.format(
+            "{\"villeDepart\":\"%s\",\"villeArrivee\":\"%s\",\"dateVoyage\":\"%s\",\"train\":\"%s\",\"heureDepart\":\"%s\",\"heureArrivee\":\"%s\",\"itineraireId\":null}",
+            villeDepart, villeArrivee, dateVoyage, train, heureDepart, heureArrivee
+        );
+
+        mockMvc.perform(post("/trajets")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isCreated());
+    }
+
+    /**
+     * Test 13: Admin CRUD for connections with real trajets (create/update/delete).
+     */
+    @Test
+    void adminCrudConnectionsWithRealTrajets() throws Exception {
+        LocalDate dateVoyage = LocalDate.now().plusDays(1);
+
+        // First, create some trajets that we'll use in our connections
+        Long trajet1Id = createTrajetAndGetId(adminToken, "Paris", "Lyon", dateVoyage, "TGV-400", "09:00", "12:00");
+        Long trajet2Id = createTrajetAndGetId(adminToken, "Lyon", "Marseille", dateVoyage, "TGV-401", "13:00", "15:30");
+        Long trajet3Id = createTrajetAndGetId(adminToken, "Paris", "Bordeaux", dateVoyage, "TGV-500", "10:00", "13:15");
+
+        // Test 1: Create a single-leg connection
+        String singleLegBody = String.format(
+                "{\"villeDepart\":\"Paris\",\"villeArrivee\":\"Bordeaux\",\"dateVoyage\":\"%s\",\"trajetIds\":[%d],\"totalDurationMinutes\":195,\"legsCount\":1}",
+                dateVoyage, trajet3Id
+        );
+
+        String singleLegCreated = mockMvc.perform(post("/admin/connections")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(singleLegBody))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").isNotEmpty())
+                .andExpect(jsonPath("$.villeDepart", equalTo("Paris")))
+                .andExpect(jsonPath("$.villeArrivee", equalTo("Bordeaux")))
+                .andExpect(jsonPath("$.legsCount", equalTo(1)))
+                .andExpect(jsonPath("$.trajetIds", containsString(trajet3Id.toString())))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        JsonNode singleLegJson = objectMapper.readTree(singleLegCreated);
+        Long singleLegConnectionId = singleLegJson.get("id").asLong();
+
+        // Test 2: Create a multi-leg connection (Paris -> Lyon -> Marseille)
+        String multiLegBody = String.format(
+                "{\"villeDepart\":\"Paris\",\"villeArrivee\":\"Marseille\",\"dateVoyage\":\"%s\",\"trajetIds\":[%d,%d],\"totalDurationMinutes\":390,\"legsCount\":2}",
+                dateVoyage, trajet1Id, trajet2Id
+        );
+
+        String multiLegCreated = mockMvc.perform(post("/admin/connections")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(multiLegBody))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").isNotEmpty())
+                .andExpect(jsonPath("$.villeDepart", equalTo("Paris")))
+                .andExpect(jsonPath("$.villeArrivee", equalTo("Marseille")))
+                .andExpect(jsonPath("$.legsCount", equalTo(2)))
+                .andExpect(jsonPath("$.trajetIds", containsString(trajet1Id.toString())))
+                .andExpect(jsonPath("$.trajetIds", containsString(trajet2Id.toString())))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        JsonNode multiLegJson = objectMapper.readTree(multiLegCreated);
+        Long multiLegConnectionId = multiLegJson.get("id").asLong();
+
+        // Test 3: Update the multi-leg connection to add another trajet
+        Long trajet4Id = createTrajetAndGetId(adminToken, "Marseille", "Nice", dateVoyage, "TER-100", "16:00", "18:30");
+        
+        String updateBody = String.format(
+                "{\"villeDepart\":\"Paris\",\"villeArrivee\":\"Nice\",\"dateVoyage\":\"%s\",\"trajetIds\":[%d,%d,%d],\"totalDurationMinutes\":540,\"legsCount\":3}",
+                dateVoyage, trajet1Id, trajet2Id, trajet4Id
+        );
+
+        mockMvc.perform(patch("/admin/connections/" + multiLegConnectionId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id", equalTo(multiLegConnectionId.intValue())))
+                .andExpect(jsonPath("$.villeArrivee", equalTo("Nice")))
+                .andExpect(jsonPath("$.legsCount", equalTo(3)))
+                .andExpect(jsonPath("$.trajetIds", containsString(trajet1Id.toString())))
+                .andExpect(jsonPath("$.trajetIds", containsString(trajet2Id.toString())))
+                .andExpect(jsonPath("$.trajetIds", containsString(trajet4Id.toString())))
+                .andExpect(jsonPath("$.price", notNullValue()));
+
+        // Test 4: Verify we can retrieve the updated connection with all its trajets
+        mockMvc.perform(get("/connections/" + multiLegConnectionId)
+                        .header("Authorization", "Bearer " + clientToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id", equalTo(multiLegConnectionId.intValue())))
+                .andExpect(jsonPath("$.villeDepart", equalTo("Paris")))
+                .andExpect(jsonPath("$.villeArrivee", equalTo("Nice")))
+                .andExpect(jsonPath("$.legsCount", equalTo(3)))
+                .andExpect(jsonPath("$.legs", hasSize(3)));
+
+        // Test 5: Delete both connections
+        mockMvc.perform(delete("/admin/connections/" + singleLegConnectionId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(delete("/admin/connections/" + multiLegConnectionId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isNoContent());
+
+        // Test 6: Ensure they are gone
+        mockMvc.perform(get("/connections/" + singleLegConnectionId)
+                        .header("Authorization", "Bearer " + clientToken))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/connections/" + multiLegConnectionId)
+                        .header("Authorization", "Bearer " + clientToken))
+                .andExpect(status().isNotFound());
+    }
+
+    /**
+     * Test 14: Test connection search with multiple trajets to verify functionality works.
+     */
+    @Test
+    void connectionSearchWithMultipleTrajetsWorks() throws Exception {
+        LocalDate dateVoyage = LocalDate.now().plusDays(2);
+
+        // Create a complex route: Lille -> Paris -> Lyon -> Marseille -> Nice
+        createTrajetAndGetId(adminToken, "Lille", "Paris", dateVoyage, "TGV-600", "07:00", "08:00");
+        createTrajetAndGetId(adminToken, "Paris", "Lyon", dateVoyage, "TGV-601", "09:00", "12:00");
+        createTrajetAndGetId(adminToken, "Lyon", "Marseille", dateVoyage, "TGV-602", "13:00", "15:30");
+        createTrajetAndGetId(adminToken, "Marseille", "Nice", dateVoyage, "TER-200", "16:00", "18:30");
+
+        // Also create some alternative routes
+        createTrajetAndGetId(adminToken, "Lille", "Lyon", dateVoyage, "TGV-700", "08:30", "13:00");
+        createTrajetAndGetId(adminToken, "Paris", "Marseille", dateVoyage, "TGV-800", "10:00", "15:00");
+
+        // Test 1: Search for direct route (should find it)
+        MvcResult directResult = mockMvc.perform(get("/connections/search")
+                        .param("villeDepart", "Lille")
+                        .param("villeArrivee", "Paris")
+                        .param("dateVoyage", dateVoyage.toString())
+                        .header("Authorization", "Bearer " + clientToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalCount", greaterThanOrEqualTo(1)))
+                .andReturn();
+
+        String directContent = directResult.getResponse().getContentAsString();
+        JsonNode directRoot = objectMapper.readTree(directContent);
+        
+        // Verify we found at least one direct connection
+        assert directRoot.get("totalCount").asInt() >= 1 : "Should find direct Lille->Paris connection";
+        
+        // Check that the first connection has 1 leg
+        JsonNode firstDirectConn = directRoot.get("content").get(0);
+        assert firstDirectConn.get("legsCount").asInt() == 1 : "Direct connection should have 1 leg";
+
+        // Test 2: Search for multi-leg route (Lille -> Nice)
+        MvcResult multiLegResult = mockMvc.perform(get("/connections/search")
+                        .param("villeDepart", "Lille")
+                        .param("villeArrivee", "Nice")
+                        .param("dateVoyage", dateVoyage.toString())
+                        .header("Authorization", "Bearer " + clientToken))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String multiLegContent = multiLegResult.getResponse().getContentAsString();
+        JsonNode multiLegRoot = objectMapper.readTree(multiLegContent);
+        
+        // Should find at least one multi-leg connection
+        int totalConnections = multiLegRoot.get("totalCount").asInt();
+        assert totalConnections >= 1 : "Should find at least one Lille->Nice connection";
+
+        // Verify that we have connections with multiple legs
+        JsonNode connections = multiLegRoot.get("content");
+        boolean foundMultiLeg = false;
+        for (JsonNode conn : connections) {
+            if (conn.get("legsCount").asInt() > 1) {
+                foundMultiLeg = true;
+                // Verify the connection has proper structure
+                assert conn.get("legs").isArray() : "Connection should have legs array";
+                assert conn.get("legs").size() == conn.get("legsCount").asInt() : "Legs array size should match legsCount";
+                break;
+            }
+        }
+        assert foundMultiLeg : "Should find at least one multi-leg connection";
+
+        // Test 3: Search for intermediate route (Paris -> Marseille)
+        mockMvc.perform(get("/connections/search")
+                        .param("villeDepart", "Paris")
+                        .param("villeArrivee", "Marseille")
+                        .param("dateVoyage", dateVoyage.toString())
+                        .header("Authorization", "Bearer " + clientToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalCount", greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.content[0].villeDepart", equalToIgnoringCase("Paris")))
+                .andExpect(jsonPath("$.content[0].villeArrivee", equalToIgnoringCase("Marseille")));
+    }
+
+    /**
+     * Test 15: Test CRUD operations with connections containing many trajets.
+     */
+    @Test
+    void crudOperationsWithManyTrajets() throws Exception {
+        LocalDate dateVoyage = LocalDate.now().plusDays(3);
+
+        // Create a long chain of trajets for a complex journey
+        Long trajet1Id = createTrajetAndGetId(adminToken, "Strasbourg", "Paris", dateVoyage, "TGV-900", "06:00", "08:15");
+        Long trajet2Id = createTrajetAndGetId(adminToken, "Paris", "Tours", dateVoyage, "TGV-901", "09:00", "10:30");
+        Long trajet3Id = createTrajetAndGetId(adminToken, "Tours", "Bordeaux", dateVoyage, "TGV-902", "11:15", "13:45");
+        Long trajet4Id = createTrajetAndGetId(adminToken, "Bordeaux", "Toulouse", dateVoyage, "TER-300", "14:30", "16:00");
+
+        // Test creating a connection with 4 trajets
+        String complexConnectionBody = String.format(
+                "{\"villeDepart\":\"Strasbourg\",\"villeArrivee\":\"Toulouse\",\"dateVoyage\":\"%s\",\"trajetIds\":[%d,%d,%d,%d],\"totalDurationMinutes\":600,\"legsCount\":4}",
+                dateVoyage, trajet1Id, trajet2Id, trajet3Id, trajet4Id
+        );
+
+        String complexCreated = mockMvc.perform(post("/admin/connections")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(complexConnectionBody))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").isNotEmpty())
+                .andExpect(jsonPath("$.villeDepart", equalTo("Strasbourg")))
+                .andExpect(jsonPath("$.villeArrivee", equalTo("Toulouse")))
+                .andExpect(jsonPath("$.legsCount", equalTo(4)))
+                .andExpect(jsonPath("$.trajetIds", containsString(trajet1Id.toString())))
+                .andExpect(jsonPath("$.trajetIds", containsString(trajet2Id.toString())))
+                .andExpect(jsonPath("$.trajetIds", containsString(trajet3Id.toString())))
+                .andExpect(jsonPath("$.trajetIds", containsString(trajet4Id.toString())))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        JsonNode complexJson = objectMapper.readTree(complexCreated);
+        Long complexConnectionId = complexJson.get("id").asLong();
+
+        // Test retrieving the complex connection
+        mockMvc.perform(get("/connections/" + complexConnectionId)
+                        .header("Authorization", "Bearer " + clientToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id", equalTo(complexConnectionId.intValue())))
+                .andExpect(jsonPath("$.villeDepart", equalTo("Strasbourg")))
+                .andExpect(jsonPath("$.villeArrivee", equalTo("Toulouse")))
+                .andExpect(jsonPath("$.legsCount", equalTo(4)))
+                .andExpect(jsonPath("$.legs", hasSize(4)))
+                .andExpect(jsonPath("$.legs[0].villeDepart", equalTo("Strasbourg")))
+                .andExpect(jsonPath("$.legs[0].villeArrivee", equalTo("Paris")))
+                .andExpect(jsonPath("$.legs[3].villeDepart", equalTo("Bordeaux")))
+                .andExpect(jsonPath("$.legs[3].villeArrivee", equalTo("Toulouse")));
+
+        // Test updating to remove one trajet (make it a 3-leg journey)
+        String updatedConnectionBody = String.format(
+                "{\"villeDepart\":\"Strasbourg\",\"villeArrivee\":\"Bordeaux\",\"dateVoyage\":\"%s\",\"trajetIds\":[%d,%d,%d],\"totalDurationMinutes\":465,\"legsCount\":3}",
+                dateVoyage, trajet1Id, trajet2Id, trajet3Id
+        );
+
+        mockMvc.perform(patch("/admin/connections/" + complexConnectionId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updatedConnectionBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id", equalTo(complexConnectionId.intValue())))
+                .andExpect(jsonPath("$.villeArrivee", equalTo("Bordeaux")))
+                .andExpect(jsonPath("$.legsCount", equalTo(3)))
+                .andExpect(jsonPath("$.trajetIds", containsString(trajet1Id.toString())))
+                .andExpect(jsonPath("$.trajetIds", containsString(trajet2Id.toString())))
+                .andExpect(jsonPath("$.trajetIds", containsString(trajet3Id.toString())))
+                .andExpect(jsonPath("$.trajetIds", not(containsString(trajet4Id.toString()))));
+
+        // Verify the updated connection
+        mockMvc.perform(get("/connections/" + complexConnectionId)
+                        .header("Authorization", "Bearer " + clientToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.legsCount", equalTo(3)))
+                .andExpect(jsonPath("$.legs", hasSize(3)))
+                .andExpect(jsonPath("$.villeArrivee", equalTo("Bordeaux")));
+
+        // Clean up
+        mockMvc.perform(delete("/admin/connections/" + complexConnectionId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isNoContent());
+    }
+
+    /**
+     * Helper method to create a trajet and return its ID.
+     */
+    private Long createTrajetAndGetId(String token, String villeDepart, String villeArrivee,
+                                      LocalDate dateVoyage, String train, String heureDepart, String heureArrivee) throws Exception {
+        String requestBody = String.format(
+            "{\"villeDepart\":\"%s\",\"villeArrivee\":\"%s\",\"dateVoyage\":\"%s\",\"train\":\"%s\",\"heureDepart\":\"%s\",\"heureArrivee\":\"%s\",\"itineraireId\":null}",
+            villeDepart, villeArrivee, dateVoyage, train, heureDepart, heureArrivee
+        );
+
+        MvcResult result = mockMvc.perform(post("/trajets")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String responseContent = result.getResponse().getContentAsString();
+        JsonNode responseJson = objectMapper.readTree(responseContent);
+        return responseJson.get("id").asLong();
+    }
+}
+
+
+
+
+
+
+

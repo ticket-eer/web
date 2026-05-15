@@ -154,16 +154,18 @@ export async function createTransaction(
     montant: number,
     moyenPaiement: string,
     trajetId?: string | number | null,
-    itineraireId?: string | number | null,
+    connectionId?: string | number | null,
     userId?: string | number | null
 ) {
     const body: any = {
         montant,
         moyenPaiement,
+        connectionId ,
+        userId
     };
 
     if (trajetId) body.trajetId = trajetId;
-    if (itineraireId) body.itineraireId = itineraireId;
+    if (connectionId) body.connectionId = connectionId;
     if (userId) body.userId = userId;
 
     return call('POST', '/transactions', body);
