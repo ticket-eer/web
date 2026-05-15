@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { createTransaction, getStoredUser } from '../services/api';
-import { TopNav } from './TopNav';
-import { SubNav } from './SubNav';
+import React, { useEffect, useMemo, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
+import { useNavigate } from "react-router-dom";
+import { createTransaction, getStoredUser } from "../services/api";
+import { TopNav } from "./TopNav";
+import { SubNav } from "./SubNav";
 
 function TicketPurchasePage() {
   const navigate = useNavigate();
@@ -10,23 +11,25 @@ function TicketPurchasePage() {
   const [trip, setTrip] = useState<any>(null);
   const [step, setStep] = useState(1);
   const [generatedTicket, setGeneratedTicket] = useState<any>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const user = getStoredUser();
 
   useEffect(() => {
     try {
-      const stored = JSON.parse(sessionStorage.getItem('selectedTrip') || 'null');
+      const stored = JSON.parse(
+        sessionStorage.getItem("selectedTrip") || "null",
+      );
 
       if (!stored) {
-        navigate('/search');
+        navigate("/search");
         return;
       }
 
       setTrip(stored);
     } catch {
-      navigate('/search');
+      navigate("/search");
     }
   }, [navigate]);
 
@@ -47,14 +50,14 @@ function TicketPurchasePage() {
     return value;
   }, [trip]);
 
-  const formattedPrice = montant !== null ? `€${montant.toFixed(2)}` : 'N/A';
+  const formattedPrice = montant !== null ? `€${montant.toFixed(2)}` : "N/A";
 
   async function pay() {
-    setError('');
+    setError("");
 
     if (montant === null) {
       setError(
-        "Prix indisponible depuis l'API. Vérifie que l'admin a bien ajouté un prix au trajet."
+        "Prix indisponible depuis l'API. Vérifie que l'admin a bien ajouté un prix au trajet.",
       );
       return;
     }
@@ -69,17 +72,15 @@ function TicketPurchasePage() {
 
       const data = await createTransaction(
         montant,
-        'CARTE',
+        "CARTE",
         trajetId,
-        connectionId
+        connectionId,
       );
 
-      const billet =
-        data.billet ||
+      const billet = data.billet ||
         data.ticket ||
         data.billetDto ||
-        data.transaction?.billet ||
-        {
+        data.transaction?.billet || {
           id: data.transaction?.billetId || `TKT-${Date.now()}`,
           codeOptique: null,
         };
@@ -88,24 +89,23 @@ function TicketPurchasePage() {
         ...billet,
         trajet: trip,
         trajetId: billet.trajetId || billet.trajet_id || trajetId,
-        connectionId: billet.connectionId || billet.connection_id || connectionId,
+        connectionId:
+          billet.connectionId || billet.connection_id || connectionId,
         montant,
-        etatBillet: billet.etatBillet || billet.etat_billet || 'NON_UTILISE',
+        etatBillet: billet.etatBillet || billet.etat_billet || "NON_UTILISE",
         dateAchat:
           billet.dateAchat ||
           billet.date_achat ||
           new Date().toISOString().slice(0, 10),
         transactionId:
-          billet.transactionId ||
-          billet.transaction_id ||
-          data.transaction?.id,
+          billet.transactionId || billet.transaction_id || data.transaction?.id,
       };
 
       setGeneratedTicket(fullTicket);
-      sessionStorage.setItem('generatedTicket', JSON.stringify(fullTicket));
+      sessionStorage.setItem("generatedTicket", JSON.stringify(fullTicket));
       setStep(3);
     } catch (err: any) {
-      setError(err.message || 'Erreur paiement');
+      setError(err.message || "Erreur paiement");
     } finally {
       setLoading(false);
     }
@@ -121,19 +121,19 @@ function TicketPurchasePage() {
       <div className="pwrap" style={{ maxWidth: 700 }}>
         <div className="steps">
           {[
-            ['Résumé', 1],
-            ['Paiement', 2],
-            ['Confirmation', 3],
+            ["Résumé", 1],
+            ["Paiement", 2],
+            ["Confirmation", 3],
           ].map(([label, number], index) => {
             const n = number as number;
-            const c = n < step ? 'done' : n === step ? 'active' : 'pending';
+            const c = n < step ? "done" : n === step ? "active" : "pending";
 
             return (
               <React.Fragment key={label}>
                 {index > 0 && <div className="sline" />}
                 <div className="step">
-                  <div className={`snum ${c}`}>{n < step ? '✓' : n}</div>
-                  <span className={`slbl ${n <= step ? 'active' : 'pending'}`}>
+                  <div className={`snum ${c}`}>{n < step ? "✓" : n}</div>
+                  <span className={`slbl ${n <= step ? "active" : "pending"}`}>
                     {label}
                   </span>
                 </div>
@@ -143,7 +143,7 @@ function TicketPurchasePage() {
         </div>
 
         {error && (
-          <div className="err" style={{ display: 'block' }}>
+          <div className="err" style={{ display: "block" }}>
             {error}
           </div>
         )}
@@ -157,39 +157,39 @@ function TicketPurchasePage() {
             <div className="pcard-body">
               <div className="trip-summary">
                 <div className="ts-side">
-                  <div className="ts-time">{trip.heureDepart || '--'}</div>
-                  <div className="ts-city">{trip.villeDepart || '—'}</div>
+                  <div className="ts-time">{trip.heureDepart || "--"}</div>
+                  <div className="ts-city">{trip.villeDepart || "—"}</div>
                 </div>
 
                 <span className="ts-arrow">→</span>
 
                 <div className="ts-side">
-                  <div className="ts-time">{trip.heureArrivee || '--'}</div>
-                  <div className="ts-city">{trip.villeArrivee || '—'}</div>
+                  <div className="ts-time">{trip.heureArrivee || "--"}</div>
+                  <div className="ts-city">{trip.villeArrivee || "—"}</div>
                 </div>
               </div>
 
               <div className="info-grid">
                 <div className="ic">
                   <div className="il">Date de voyage</div>
-                  <div className="iv">{trip.dateVoyage || '—'}</div>
+                  <div className="iv">{trip.dateVoyage || "—"}</div>
                 </div>
 
                 <div className="ic">
                   <div className="il">Type</div>
                   <div className="iv">
-                    {trip.isConnection ? 'Correspondance' : 'Trajet direct'}
+                    {trip.isConnection ? "Correspondance" : "Trajet direct"}
                   </div>
                 </div>
 
                 <div className="ic">
                   <div className="il">Train</div>
-                  <div className="iv">{trip.train || '—'}</div>
+                  <div className="iv">{trip.train || "—"}</div>
                 </div>
 
                 <div className="ic">
                   <div className="il">Passager</div>
-                  <div className="iv">{user?.nom || user?.email || '—'}</div>
+                  <div className="iv">{user?.nom || user?.email || "—"}</div>
                 </div>
               </div>
 
@@ -200,13 +200,14 @@ function TicketPurchasePage() {
 
               {montant === null && (
                 <div className="warn-note">
-                  ⚠️ Le prix n’est pas disponible depuis l’API. Il faut le renseigner côté admin.
+                  ⚠️ Le prix n’est pas disponible depuis l’API. Il faut le
+                  renseigner côté admin.
                 </div>
               )}
             </div>
 
             <div className="pcard-foot">
-              <button className="btn-sec" onClick={() => navigate('/search')}>
+              <button className="btn-sec" onClick={() => navigate("/search")}>
                 ← Retour
               </button>
 
@@ -232,20 +233,20 @@ function TicketPurchasePage() {
                 <label>Moyen de paiement</label>
                 <div
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
+                    display: "flex",
+                    alignItems: "center",
                     gap: 10,
-                    padding: '11px 16px',
-                    border: '1px solid #2563eb',
+                    padding: "11px 16px",
+                    border: "1px solid #2563eb",
                     borderRadius: 8,
-                    background: '#eff6ff',
+                    background: "#eff6ff",
                   }}
                 >
                   <span
                     style={{
                       fontSize: 14,
                       fontWeight: 600,
-                      color: '#1d4ed8',
+                      color: "#1d4ed8",
                     }}
                   >
                     Credit / Debit Card
@@ -262,7 +263,13 @@ function TicketPurchasePage() {
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 14,
+                }}
+              >
                 <div className="fld">
                   <label>Expiry</label>
                   <input className="ro-inp" value="12/27" readOnly />
@@ -275,7 +282,8 @@ function TicketPurchasePage() {
               </div>
 
               <div className="warn-note">
-                ⚠️ Note: This is a mock payment interface for demonstration purposes.
+                ⚠️ Note: This is a mock payment interface for demonstration
+                purposes.
               </div>
 
               <div className="price-row">
@@ -290,7 +298,7 @@ function TicketPurchasePage() {
               </button>
 
               <button className="btn-prim" onClick={pay} disabled={loading}>
-                {loading ? 'Processing...' : 'Pay and generate ticket'}
+                {loading ? "Processing..." : "Pay and generate ticket"}
               </button>
             </div>
           </div>
@@ -302,7 +310,7 @@ function TicketPurchasePage() {
               <div className="suc-icon">✓</div>
               <div className="suc-title">Ticket generated successfully</div>
               <div className="suc-sub">
-                Your ticket has been sent to {user?.email || ''}
+                Your ticket has been sent to {user?.email || ""}
               </div>
             </div>
 
@@ -312,9 +320,9 @@ function TicketPurchasePage() {
                   <div className="il">Ticket ID</div>
                   <div
                     className="iv"
-                    style={{ fontSize: 12, fontFamily: 'monospace' }}
+                    style={{ fontSize: 12, fontFamily: "monospace" }}
                   >
-                    {generatedTicket.id || 'N/A'}
+                    {generatedTicket.id || "N/A"}
                   </div>
                 </div>
 
@@ -333,22 +341,33 @@ function TicketPurchasePage() {
                 <div className="ic">
                   <div className="il">Transaction</div>
                   <div className="iv">
-                    {generatedTicket.transactionId || 'N/A'}
+                    {generatedTicket.transactionId || "N/A"}
                   </div>
                 </div>
               </div>
 
               <div className="qr-box">
                 <div className="qr-lbl">Validation QR Code</div>
-                <div className="qr-fake">
-                  {Array.from({ length: 81 }).map((_, i) => (
-                    <span key={i} />
-                  ))}
+                <div className="qr-gen">
+                  {generatedTicket?.codeOptique ||
+                  generatedTicket?.code_optique ? (
+                    <QRCodeSVG
+                      value={
+                        generatedTicket.codeOptique ||
+                        generatedTicket.code_optique
+                      }
+                      size={200}
+                      level="H"
+                      includeMargin
+                    />
+                  ) : (
+                    <div className="qr-placeholder">No QR available</div>
+                  )}
                 </div>
                 <div className="qr-code">
                   {generatedTicket.codeOptique ||
                     generatedTicket.code_optique ||
-                    'TKT-CODE'}
+                    "TKT-CODE"}
                 </div>
               </div>
 
@@ -359,11 +378,14 @@ function TicketPurchasePage() {
             </div>
 
             <div className="pcard-foot">
-              <button className="btn-sec" onClick={() => navigate('/my-tickets')}>
+              <button
+                className="btn-sec"
+                onClick={() => navigate("/my-tickets")}
+              >
                 View all tickets
               </button>
 
-              <button className="btn-prim" onClick={() => navigate('/search')}>
+              <button className="btn-prim" onClick={() => navigate("/search")}>
                 Book another trip
               </button>
             </div>

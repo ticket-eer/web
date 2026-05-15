@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { getBillet, getBilletByCode } from '../services/api';
-import { TopNav } from './TopNav';
-import { SubNav } from './SubNav';
+import React, { useEffect, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
+import { useNavigate, useParams } from "react-router-dom";
+import { getBillet, getBilletByCode } from "../services/api";
+import { TopNav } from "./TopNav";
+import { SubNav } from "./SubNav";
 
 function GeneratedTicketPage() {
   const navigate = useNavigate();
@@ -10,20 +11,20 @@ function GeneratedTicketPage() {
 
   const [ticket, setTicket] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
 
     async function loadTicket() {
       setLoading(true);
-      setError('');
+      setError("");
 
       const fallbackTicket = (() => {
         try {
           return (
-            JSON.parse(sessionStorage.getItem('currentTicket') || 'null') ||
-            JSON.parse(sessionStorage.getItem('generatedTicket') || 'null')
+            JSON.parse(sessionStorage.getItem("currentTicket") || "null") ||
+            JSON.parse(sessionStorage.getItem("generatedTicket") || "null")
           );
         } catch {
           return null;
@@ -55,7 +56,7 @@ function GeneratedTicketPage() {
       } catch {
         if (active) {
           setTicket(fallbackTicket);
-          setError(fallbackTicket ? '' : 'Ticket not found.');
+          setError(fallbackTicket ? "" : "Ticket not found.");
         }
       } finally {
         if (active) {
@@ -74,36 +75,36 @@ function GeneratedTicketPage() {
   function getTicketStatus(ticketData: any) {
     const status = String(
       ticketData?.etatBillet ||
-      ticketData?.etat_billet ||
-      ticketData?.status ||
-      ticketData?.etat ||
-      'NON_UTILISE'
+        ticketData?.etat_billet ||
+        ticketData?.status ||
+        ticketData?.etat ||
+        "NON_UTILISE",
     ).toUpperCase();
 
-    if (status === 'UTILISE' || status === 'USED') {
+    if (status === "UTILISE" || status === "USED") {
       return {
-        badgeClass: 'bu',
-        badgeLabel: 'Used',
+        badgeClass: "bu",
+        badgeLabel: "Used",
       };
     }
 
-    if (status === 'EXPIRE' || status === 'EXPIRED') {
+    if (status === "EXPIRE" || status === "EXPIRED") {
       return {
-        badgeClass: 'be',
-        badgeLabel: 'Expired',
+        badgeClass: "be",
+        badgeLabel: "Expired",
       };
     }
 
-    if (status === 'INVALIDE' || status === 'INVALID') {
+    if (status === "INVALIDE" || status === "INVALID") {
       return {
-        badgeClass: 'bi',
-        badgeLabel: 'Invalid',
+        badgeClass: "bi",
+        badgeLabel: "Invalid",
       };
     }
 
     return {
-      badgeClass: 'bv',
-      badgeLabel: 'Valid / Not yet used',
+      badgeClass: "bv",
+      badgeLabel: "Valid / Not yet used",
     };
   }
 
@@ -137,7 +138,7 @@ function GeneratedTicketPage() {
 
           <div className="pcard-body">
             {error && (
-              <div className="err" style={{ display: 'block' }}>
+              <div className="err" style={{ display: "block" }}>
                 {error}
               </div>
             )}
@@ -146,7 +147,10 @@ function GeneratedTicketPage() {
               <div className="ic">
                 <div className="il">Ticket ID</div>
                 <div className="iv">
-                  {ticket?.id || ticket?.codeOptique || ticket?.code_optique || 'N/A'}
+                  {ticket?.id ||
+                    ticket?.codeOptique ||
+                    ticket?.code_optique ||
+                    "N/A"}
                 </div>
               </div>
 
@@ -161,29 +165,36 @@ function GeneratedTicketPage() {
             <div className="qr-box">
               <div className="qr-lbl">Validation QR Code</div>
 
-              <div className="qr-fake">
-                {Array.from({ length: 81 }).map((_, i) => (
-                  <span key={i} />
-                ))}
+              <div className="qr-gen">
+                {ticket?.codeOptique || ticket?.code_optique ? (
+                  <QRCodeSVG
+                    value={ticket.codeOptique || ticket.code_optique}
+                    size={200}
+                    level="H"
+                    includeMargin
+                  />
+                ) : (
+                  <div className="qr-placeholder">No QR available</div>
+                )}
               </div>
 
               <div className="qr-code">
-                {ticket?.codeOptique || ticket?.code_optique || 'TKT-CODE'}
+                {ticket?.codeOptique || ticket?.code_optique || "TKT-CODE"}
               </div>
             </div>
 
             <div className="imp-note">
-              <strong>Important:</strong> This ticket is personal and must be presented during
-              control.
+              <strong>Important:</strong> This ticket is personal and must be
+              presented during control.
             </div>
           </div>
 
           <div className="pcard-foot">
-            <button className="btn-sec" onClick={() => navigate('/my-tickets')}>
+            <button className="btn-sec" onClick={() => navigate("/my-tickets")}>
               Back to tickets
             </button>
 
-            <button className="btn-prim" onClick={() => navigate('/search')}>
+            <button className="btn-prim" onClick={() => navigate("/search")}>
               Book another trip
             </button>
           </div>
